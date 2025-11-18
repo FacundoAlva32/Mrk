@@ -4,32 +4,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
 
-
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        'django.db.backends': {
-            'level': 'DEBUG',
-            'handlers': ['console'],
-        },
-        'allauth': {
-            'level': 'DEBUG',
-            'handlers': ['console'],
-        },
-    },
-}
-
 # Cargar variables de entorno - DETECCIÓN MEJORADA PARA RENDER
 if os.path.exists('.env.local'):
     load_dotenv('.env.local')  # Desarrollo local
@@ -60,9 +34,9 @@ else:
     # Configuración robusta de ALLOWED_HOSTS para Render
     render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
     if render_host:
-        ALLOWED_HOSTS = [render_host, 'localhost', '127.0.0.1']
+        ALLOWED_HOSTS = [render_host, '.onrender.com', 'localhost', '127.0.0.1']
     else:
-        ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+        ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
 
 # =============================================================================
 # CONFIGURACIÓN CLOUDINARY 
@@ -127,8 +101,6 @@ INSTALLED_APPS = [
     'chat',
 ]
 
-SIDE_ID = 1
-
 # Agregar Cloudinary solo si está configurado
 if CLOUDINARY_CONFIGURED:
     INSTALLED_APPS = [
@@ -181,21 +153,32 @@ ROOT_URLCONF = 'masivo_tech.urls'
 WSGI_APPLICATION = 'masivo_tech.wsgi.application'
 
 # =============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS - OPTIMIZADA PARA RENDER
+# CONFIGURACIÓN DE BASE DE DATOS - MEJORADA PARA RENDER
 # =============================================================================
 
-# Configuración robusta que funciona en todos los escenarios
+# Configuración robusta con fallback a SQLite
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
 if DATABASE_URL:
-    # PostgreSQL en producción (Render)
-    DATABASES = {
-        'default': dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True
-        )
-    }
-    print("🗄️  Base de datos: PostgreSQL (Render)")
+    try:
+        # PostgreSQL en producción (Render)
+        DATABASES = {
+            'default': dj_database_url.parse(
+                DATABASE_URL,
+                conn_max_age=600,
+                conn_health_checks=True,
+                ssl_require=True
+            )
+        }
+        print("🗄️  Base de datos: PostgreSQL (Render)")
+    except Exception as e:
+        print(f"❌ Error con PostgreSQL, usando SQLite: {e}")
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
     # SQLite en desarrollo
     DATABASES = {
@@ -220,7 +203,7 @@ AUTHENTICATION_BACKENDS = [
 AUTH_USER_MODEL = 'users.CustomUser'
 
 # Configuración de Allauth
-SITE_ID = 1
+SITE_ID = 1  # CORREGIDO - estaba SIDE_ID
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
@@ -247,12 +230,7 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 # CONFIGURACIÓN DE EMAIL (OPTIMIZADA PARA RENDER)
 # =============================================================================
 
-# En producción (Render) usa consola, en desarrollo puedes configurar SMTP
-if ENVIRONMENT == 'development':
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Render no tiene SMTP
-
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = "no-reply@masivotech.com"
 
 # =============================================================================
@@ -326,24 +304,16 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 MERCADOPAGO_PUBLIC_KEY = os.getenv('MERCADOPAGO_PUBLIC_KEY')
 
-# Google OAuth
+# Google OAuth - SOLO UN ADAPTER
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
-        'SCOPE': [
-            'profile',
-            'email',
-        ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        },
-        'APP': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID', ''), 
-            'secret': os.getenv('GOOGLE_SECRET', ''),    
-            'key': ''
-        }
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
     }
 }
-SOCIALACCOUNT_ADAPTER = 'marketplace.patches.FixedSocialAccountAdapter'
+
+# USAR SOLO UN ADAPTER - elige uno:
+# SOCIALACCOUNT_ADAPTER = 'marketplace.patches.FixedSocialAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'users.adapters.CustomSocialAccountAdapter'
 
 # =============================================================================
@@ -374,7 +344,7 @@ if ENVIRONMENT == 'production':
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
@@ -383,7 +353,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # URL base para callbacks
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
+BASE_URL = os.getenv("BASE_URL", "https://masivotest.onrender.com")
 
 # Configuración del admin dashboard
 ADMIN_DASHBOARD = True
@@ -417,3 +387,4 @@ print("✅ Settings cargado correctamente")
 print(f"📍 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 print(f"🔧 DEBUG: {DEBUG}")
 print(f"☁️  CLOUDINARY: {CLOUDINARY_CONFIGURED}")
+print(f"🗄️  DATABASE: {DATABASES['default']['ENGINE']}")
