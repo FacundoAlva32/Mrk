@@ -4,6 +4,32 @@ from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
 
+
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.db.backends': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+        'allauth': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+    },
+}
+
 # Cargar variables de entorno - DETECCIÓN MEJORADA PARA RENDER
 if os.path.exists('.env.local'):
     load_dotenv('.env.local')  # Desarrollo local
@@ -100,6 +126,8 @@ INSTALLED_APPS = [
     'users',
     'chat',
 ]
+
+SIDE_ID = 1
 
 # Agregar Cloudinary solo si está configurado
 if CLOUDINARY_CONFIGURED:
@@ -315,6 +343,7 @@ SOCIALACCOUNT_PROVIDERS = {
         }
     }
 }
+SOCIALACCOUNT_ADAPTER = 'marketplace.patches.FixedSocialAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'users.adapters.CustomSocialAccountAdapter'
 
 # =============================================================================
