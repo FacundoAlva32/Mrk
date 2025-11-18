@@ -1,18 +1,42 @@
-# === settings.py - Configuración Django Optimizada ===
+# === settings.py - Configuración Django Optimizada para Render ===
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import dj_database_url # -> RENDER
+import dj_database_url
 
-# Cargar variables de entorno - DETECCIÓN MEJORADA
+# Cargar variables de entorno - DETECCIÓN MEJORADA PARA RENDER
 if os.path.exists('.env.local'):
     load_dotenv('.env.local')  # Desarrollo local
     ENVIRONMENT = 'development'
     print("🔄 Entorno: DESARROLLO")
 else:
-    load_dotenv()  # Producción por defecto
+    load_dotenv()  # Producción (Render)
     ENVIRONMENT = 'production'
-    print("🚀 Entorno: PRODUCCIÓN")
+    print("🚀 Entorno: PRODUCCIÓN (RENDER)")
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# =============================================================================
+# CONFIGURACIÓN DE SEGURIDAD - OPTIMIZADA PARA RENDER
+# =============================================================================
+
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-temporal-para-desarrollo')
+
+# Configuración automática por entorno - MEJORADA PARA RENDER
+if ENVIRONMENT == 'development':
+    DEBUG = True
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.1.*']
+else:
+    # Para Render, DEBUG debe ser False por seguridad
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    
+    # Configuración robusta de ALLOWED_HOSTS para Render
+    render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+    if render_host:
+        ALLOWED_HOSTS = [render_host, 'localhost', '127.0.0.1']
+    else:
+        ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # =============================================================================
 # CONFIGURACIÓN CLOUDINARY 
@@ -45,24 +69,7 @@ else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-    print("Usando archivos locales para desarrollo")
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# =============================================================================
-# CONFIGURACIÓN DE SEGURIDAD - MEJORADA CON DETECCIÓN AUTOMÁTICA
-# =============================================================================
-
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-temporal-para-desarrollo')
-
-# Configuración automática por entorno
-if ENVIRONMENT == 'development':
-    DEBUG = True
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.1.*']
-else:
-    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'masivotech.onrender.com,localhost,127.0.0.1').split(',')
+    print("📁 Usando archivos locales para desarrollo")
 
 # =============================================================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -78,17 +85,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
 
-    #Cloudinary - SOLO SI ESTÁ CONFIGURADO
-]
-
-# Agregar Cloudinary solo si está configurado
-if CLOUDINARY_CONFIGURED:
-    INSTALLED_APPS += [
-        'cloudinary',
-        'cloudinary_storage',
-    ]
-
-INSTALLED_APPS += [
     # Apps de terceros
     'crispy_forms',
     'crispy_bootstrap5',
@@ -104,6 +100,13 @@ INSTALLED_APPS += [
     'users',
     'chat',
 ]
+
+# Agregar Cloudinary solo si está configurado
+if CLOUDINARY_CONFIGURED:
+    INSTALLED_APPS = [
+        'cloudinary',
+        'cloudinary_storage',
+    ] + INSTALLED_APPS
 
 # Debug Toolbar solo en desarrollo
 if ENVIRONMENT == 'development':
@@ -143,40 +146,37 @@ MIDDLEWARE = [
 
 # Debug Toolbar solo en desarrollo
 if ENVIRONMENT == 'development':
-    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
 
 ROOT_URLCONF = 'masivo_tech.urls'
 
 WSGI_APPLICATION = 'masivo_tech.wsgi.application'
 
 # =============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS - CONFIGURACIÓN ROBUSTA
+# CONFIGURACIÓN DE BASE DE DATOS - OPTIMIZADA PARA RENDER
 # =============================================================================
 
 # Configuración robusta que funciona en todos los escenarios
-try:
-    DATABASE_URL = os.environ.get("DATABASE_URL")
-    if DATABASE_URL:
-        # PostgreSQL en producción
-        DATABASES = {
-            'default': dj_database_url.parse(DATABASE_URL)
-        }
-    else:
-        # SQLite en desarrollo
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
-except Exception as e:
-    # Fallback absoluto a SQLite
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    # PostgreSQL en producción (Render)
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True
+        )
+    }
+    print("🗄️  Base de datos: PostgreSQL (Render)")
+else:
+    # SQLite en desarrollo
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("🗄️  Base de datos: SQLite (Desarrollo)")
 
 # =============================================================================
 # CONFIGURACIÓN DE AUTENTICACIÓN
@@ -204,19 +204,27 @@ SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_STORE_TOKENS = True
-ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
+
+# Configuración de protocolo según entorno
+if ENVIRONMENT == 'development':
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
+else:
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 
 # Configuración de registro
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 
 # =============================================================================
-# CONFIGURACIÓN DE EMAIL (DESACTIVADO PARA RENDER)
+# CONFIGURACIÓN DE EMAIL (OPTIMIZADA PARA RENDER)
 # =============================================================================
 
-# Evita que Django intente conectarse a un servidor SMTP real.
-# Los mails se imprimirán en la consola de Render en los logs.
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# En producción (Render) usa consola, en desarrollo puedes configurar SMTP
+if ENVIRONMENT == 'development':
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Render no tiene SMTP
+
 DEFAULT_FROM_EMAIL = "no-reply@masivotech.com"
 
 # =============================================================================
@@ -229,14 +237,15 @@ USE_I18N = True
 USE_TZ = True
 
 # =============================================================================
-# CONFIGURACIÓN DE ARCHIVOS ESTÁTICOS Y MEDIA
+# CONFIGURACIÓN DE ARCHIVOS ESTÁTICOS Y MEDIA - OPTIMIZADA RENDER
 # =============================================================================
 
 # Archivos estáticos
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# --> RENDER <--
+
+# Configuración de WhiteNoise para Render
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Archivos media (configuración local como respaldo)
@@ -284,8 +293,8 @@ CART_SESSION_ID = 'cart'
 
 # Google Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-# Mercado Pago - CONFIGURACIÓN BÁSICA
 
+# Mercado Pago
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 MERCADOPAGO_PUBLIC_KEY = os.getenv('MERCADOPAGO_PUBLIC_KEY')
 
@@ -300,7 +309,7 @@ SOCIALACCOUNT_PROVIDERS = {
             'access_type': 'online',
         },
         'APP': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID',''), 
+            'client_id': os.getenv('GOOGLE_CLIENT_ID', ''), 
             'secret': os.getenv('GOOGLE_SECRET', ''),    
             'key': ''
         }
@@ -328,13 +337,24 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Configuración de seguridad para producción
+if ENVIRONMENT == 'production':
+    # Security settings para producción
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 # Configuración de CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # URL base para callbacks
-#BASE_URL = 'http://127.0.0.1:8000'
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000") # <-- render
+BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 
 # Configuración del admin dashboard
 ADMIN_DASHBOARD = True
@@ -345,3 +365,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configuración Debug Toolbar para desarrollo
 if ENVIRONMENT == 'development':
     INTERNAL_IPS = ['127.0.0.1']
+
+# =============================================================================
+# LOGGING PARA RENDER - PARA VER ERRORES EN PRODUCCIÓN
+# =============================================================================
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
+print("✅ Settings cargado correctamente")
+print(f"📍 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+print(f"🔧 DEBUG: {DEBUG}")
+print(f"☁️  CLOUDINARY: {CLOUDINARY_CONFIGURED}")
