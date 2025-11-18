@@ -1,0 +1,122 @@
+market/
+├── .env
+├── .env.local
+├── Procfile
+├── README.md
+├── build.sh
+├── chat
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── models.py
+│   ├── templates
+│   │   └── chat
+│   │       └── chat.html
+│   ├── tests.py
+│   ├── urls.py
+│   └── views.py
+├── db.sqlite3
+├── manage.py
+├── marketplace
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── admin_dashboard.py
+│   ├── apps.py
+│   ├── cart.py
+│   ├── context_processors.py
+│   ├── forms.py
+│   ├── models.py
+│   ├── templates
+│   │   ├── admin
+│   │   │   └── marketplace
+│   │   │       └── dashboard.html
+│   │   └── marketplace
+│   │       ├── base.html
+│   │       ├── cart.html
+│   │       ├── cart_panel_content.html
+│   │       ├── contacto.html
+│   │       ├── envios_info.html
+│   │       ├── index.html
+│   │       ├── ofertas.html
+│   │       ├── payment_failure.html
+│   │       ├── payment_pending.html
+│   │       ├── payment_success.html
+│   │       ├── product_detail.html
+│   │       └── product_list.html
+│   ├── tests.py
+│   ├── urls.py
+│   └── views.py
+├── masivo_tech
+│   ├── __init__.py
+│   ├── asgi.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── migracionBDD.md
+├── package-lock.json
+├── package.json
+├── products
+│   └── Screenshot_2025-10-22_164707.png
+├── requirements.txt
+├── runtime.txt
+├── scrape_mercado_libre.py
+├── scrape_products.py
+├── scripts
+│   └── load_products.py
+├── static
+│   ├── admin
+│   │   └── css
+│   │       └── dashboard.css
+│   ├── css
+│   │   ├── base.css
+│   │   ├── chat.css
+│   │   ├── components.css
+│   │   ├── layout.css
+│   │   ├── product.css
+│   │   ├── responsive.css
+│   │   └── reviews.css
+│   ├── images
+│   │   ├── banner1.jpg
+│   │   ├── banner2.jpg
+│   │   └── banner3.jpg
+│   └── js
+│       ├── cart-panel-simple.js
+│       ├── cart.js
+│       ├── main.js
+│       ├── navigation.js
+│       ├── offers.js
+│       ├── sorting.js
+│       └── utils.js
+├── templates
+│   ├── account
+│   │   ├── login.html
+│   │   ├── logout.html
+│   │   └── signup.html
+│   └── socialaccount
+│       ├── authentication_error.html
+│       └── login.html
+├── ultimos_productos.py
+├── unir.py
+└── users
+    ├── __init__.py
+    ├── adapters.py
+    ├── admin.py
+    ├── apps.py
+    ├── forms.py
+    ├── management
+    │   ├── __init__.py
+    │   └── commands
+    │       ├── __init__.py
+    │       └── create_admin.py
+    ├── managers.py
+    ├── models.py
+    ├── templates
+    │   └── users
+    │       ├── change_password.html
+    │       ├── delete_account.html
+    │       ├── order_history.html
+    │       ├── profile.html
+    │       └── update_profile.html
+    ├── tests.py
+    ├── urls.py
+    └── views.py

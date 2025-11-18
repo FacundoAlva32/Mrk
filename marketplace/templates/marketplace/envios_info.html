@@ -1,0 +1,463 @@
+<!-- En: market/marketplace/templates/marketplace/envios_info.html -->
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+.hero-envios {
+    background: #000;
+    color: white;
+    padding: 3rem 0 2rem;
+    text-align: center;
+}
+
+.envios-badge-main {
+    background: #fff;
+    color: #000;
+    padding: 0.6rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.envios-counter {
+    margin: 1.5rem 0;
+}
+
+.counter-item {
+    display: inline-block;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.counter-number {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.counter-label {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.envios-highlight {
+    background: #f8f9fa;
+    padding: 1.5rem 0;
+    margin: 2rem 0;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+}
+
+/* Zonas con un toque especial */
+.zonas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin: 3rem 0;
+}
+
+.zona-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    border: 2px solid #f0f0f0;
+    transition: all 0.3s ease;
+}
+
+.zona-card:hover {
+    border-color: #000;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+.zona-icon {
+    width: 60px;
+    height: 60px;
+    background: #000;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.zona-nombre {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.zona-precio {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #000;
+    margin: 0.5rem 0;
+}
+
+.zona-tiempo {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.zona-ejemplos {
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+/* Proceso simple pero bonito */
+.proceso-envios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 3rem 0;
+}
+
+.paso {
+    text-align: center;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.paso:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+}
+
+.paso-numero {
+    width: 40px;
+    height: 40px;
+    background: #000;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin: 0 auto 1rem;
+}
+
+.paso h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.paso p {
+    color: #666;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+/* Features simples */
+.features-envios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.feature-envio {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border-left: 3px solid #000;
+}
+
+.feature-icon-envio {
+    width: 40px;
+    height: 40px;
+    background: #000;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.feature-content h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.feature-content p {
+    color: #666;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* CTA simple */
+.cta-envios {
+    background: #000;
+    color: white;
+    padding: 2rem;
+    margin: 2rem 0;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.cta-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.cta-text {
+    margin-bottom: 1.5rem;
+    opacity: 0.9;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Envíos -->
+<section class="hero-envios">
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <div class="envios-badge-main">
+                    <i class="fas fa-shipping-fast me-1"></i>
+                    ENVÍOS EXPRESS
+                </div>
+                <h1 class="h2 fw-bold mb-2">🚚 Tu Gaming, Rápido</h1>
+                <p class="lead mb-3">Entregamos tu equipo donde estés</p>
+                
+                <div class="envios-counter">
+                    <div class="counter-item">
+                        <span class="counter-number">3</span>
+                        <span class="counter-label">zonas de envío</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Zonas de Envío -->
+<section class="main-content py-4">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h2 class="h4 fw-bold mb-2">Precios por Zona</h2>
+                <p class="text-muted">Calculamos el mejor envío para vos</p>
+            </div>
+        </div>
+        
+        <div class="zonas-grid">
+            <!-- CABA -->
+            <div class="zona-card">
+                <div class="zona-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <h3 class="zona-nombre">CABA</h3>
+                <div class="zona-precio">$1.500</div>
+                <p class="zona-tiempo">
+                    <i class="fas fa-bolt me-1"></i>
+                    24-48 horas
+                </p>
+                <div class="zona-ejemplos">
+                    <small>
+                        <i class="fas fa-map-pin me-1"></i>
+                        1001, 1425, 1876
+                    </small>
+                </div>
+            </div>
+            
+            <!-- GBA -->
+            <div class="zona-card">
+                <div class="zona-icon">
+                    <i class="fas fa-home"></i>
+                </div>
+                <h3 class="zona-nombre">GBA</h3>
+                <div class="zona-precio">$2.000</div>
+                <p class="zona-tiempo">
+                    <i class="fas fa-clock me-1"></i>
+                    48-72 horas
+                </p>
+                <div class="zona-ejemplos">
+                    <small>
+                        <i class="fas fa-map-pin me-1"></i>
+                        1600, 1700, 1754
+                    </small>
+                </div>
+            </div>
+            
+            <!-- Interior -->
+            <div class="zona-card">
+                <div class="zona-icon">
+                    <i class="fas fa-globe-americas"></i>
+                </div>
+                <h3 class="zona-nombre">Interior</h3>
+                <div class="zona-precio">$3.500</div>
+                <p class="zona-tiempo">
+                    <i class="fas fa-truck me-1"></i>
+                    5-7 días
+                </p>
+                <div class="zona-ejemplos">
+                    <small>
+                        <i class="fas fa-map-pin me-1"></i>
+                        5000, 8000, 9400
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Proceso de Envío -->
+<section class="main-content py-4 bg-light">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h2 class="h4 fw-bold mb-2">¿Cómo Funciona?</h2>
+                <p class="text-muted">Simple y sin complicaciones</p>
+            </div>
+        </div>
+        
+        <div class="proceso-envios">
+            <div class="paso">
+                <div class="paso-numero">1</div>
+                <h5>Elegí tus productos</h5>
+                <p>Agregá al carrito todo lo que necesites para tu setup gaming</p>
+            </div>
+            <div class="paso">
+                <div class="paso-numero">2</div>
+                <h5>Calculá el envío</h5>
+                <p>Ingresá tu código postal y te mostramos el costo al instante</p>
+            </div>
+            <div class="paso">
+                <div class="paso-numero">3</div>
+                <h5>¡Recibí tu pedido!</h5>
+                <p>Te lo llevamos hasta la puerta de tu casa con todo el cuidado</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section class="main-content py-4">
+    <div class="container">
+        <div class="features-envios">
+            <div class="feature-envio">
+                <div class="feature-icon-envio">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="feature-content">
+                    <h5>Embalaje Seguro</h5>
+                    <p>Protegemos tus productos con materiales especiales</p>
+                </div>
+            </div>
+            <div class="feature-envio">
+                <div class="feature-icon-envio">
+                    <i class="fas fa-shipping-fast"></i>
+                </div>
+                <div class="feature-content">
+                    <h5>Envío Express</h5>
+                    <p>Despachamos en 24 horas hábiles</p>
+                </div>
+            </div>
+            <div class="feature-envio">
+                <div class="feature-icon-envio">
+                    <i class="fas fa-phone-alt"></i>
+                </div>
+                <div class="feature-content">
+                    <h5>Soporte Dedicado</h5>
+                    <p>Asistencia personalizada para tu envío</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Banner Promocional -->
+<section class="envios-highlight">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h4 class="h5 mb-1">🎮 Envío gratis +$50.000</h4>
+                <p class="text-muted mb-0">Aprovechá esta promoción especial para gamers</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <a href="{% url 'cart_detail' %}" class="btn btn-dark btn-sm">
+                    <i class="fas fa-calculator me-1"></i>Calcular Envío
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Final -->
+<section class="main-content py-4">
+    <div class="container">
+        <div class="cta-envios">
+            <h3 class="cta-title">¿Listo para Comprar?</h3>
+            <p class="cta-text">Calculá tu envío directamente desde el carrito y recibí tus productos lo antes posible</p>
+            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                <a href="{% url 'cart_detail' %}" class="btn btn-light">
+                    <i class="fas fa-calculator me-2"></i>Calcular Envío
+                </a>
+                <a href="{% url 'product_list' %}" class="btn btn-outline-light">
+                    <i class="fas fa-shopping-bag me-2"></i>Ver Productos
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ Simple -->
+<section class="main-content py-4 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <h3 class="h5 fw-bold mb-3">Preguntas Frecuentes</h3>
+                <div class="accordion" id="faqEnvios">
+                    <div class="accordion-item">
+                        <h4 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                ¿Qué tan rápido llega mi pedido?
+                            </button>
+                        </h4>
+                        <div id="faq1" class="accordion-collapse collapse show">
+                            <div class="accordion-body">
+                                <strong>🚀 CABA:</strong> 24-48 horas<br>
+                                <strong>⏱️ GBA:</strong> 48-72 horas<br>
+                                <strong>🗺️ Interior:</strong> 5-7 días
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h4 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                ¿Hacen envíos a todo el país?
+                            </button>
+                        </h4>
+                        <div id="faq2" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                ¡Sí! Llegamos a todas las provincias de Argentina. Solo ingresá tu código postal en el carrito.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

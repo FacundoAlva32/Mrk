@@ -1,0 +1,1649 @@
+------market/static/js/cart-panel-simple.js------
+// === cart-panel-simple.js - Carrito Lateral Simple ===
+
+class CartPanelSimple {
+    constructor() {
+        this.initialized = false;
+        this.init();
+    }
+
+    init() {
+        if (this.initialized) return;
+        
+        this.bindEvents();
+        this.loadInitialCart();
+        this.initialized = true;
+    }
+
+    async loadInitialCart() {
+        await this.reloadCartPanel();
+    }
+
+    bindEvents() {
+        // Delegación de eventos para los botones del carrito lateral
+        document.addEventListener('click', (e) => {
+            const cartPanel = document.getElementById('cartPanel');
+            if (!cartPanel || !cartPanel.classList.contains('active')) return;
+
+            // Botón +
+            if (e.target.closest('.cart-plus')) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleQuantityChange(e.target.closest('.cart-plus'), 1);
+            }
+            // Botón -
+            if (e.target.closest('.cart-minus')) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleQuantityChange(e.target.closest('.cart-minus'), -1);
+            }
+            // Botón eliminar
+            if (e.target.closest('.cart-remove')) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleRemoveItem(e.target.closest('.cart-remove'));
+            }
+        });
+
+        // Escuchar cuando se agregan productos al carrito
+        document.addEventListener('masivotech:cartPanelUpdate', () => {
+            this.reloadCartPanel();
+        });
+
+        document.addEventListener('masivotech:cartUpdate', () => {
+            this.reloadCartPanel();
+        });
+
+        // Recargar cuando se abre el panel
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.cart-toggle')) {
+                setTimeout(() => {
+                    this.reloadCartPanel();
+                }, 300);
+            }
+        });
+    }
+
+    async handleQuantityChange(button, change) {
+        const productId = button.dataset.productId;
+        const quantityElement = document.getElementById(`quantity${productId}`);
+        
+        if (!quantityElement) return;
+
+        let currentQuantity = parseInt(quantityElement.textContent) || 1;
+        let newQuantity = currentQuantity + change;
+
+        // Validar límites
+        if (newQuantity < 1) newQuantity = 1;
+        
+        // Actualizar visualmente inmediatamente
+        quantityElement.textContent = newQuantity;
+        
+        // Habilitar/deshabilitar botón -
+        const minusBtn = document.querySelector(`.cart-minus[data-product-id="${productId}"]`);
+        if (minusBtn) {
+            minusBtn.disabled = newQuantity <= 1;
+        }
+
+        // Actualizar total del item (estimado)
+        this.updateItemTotal(productId, newQuantity);
+
+        // Enviar actualización al servidor
+        await this.updateCartItem(productId, newQuantity);
+    }
+
+    updateItemTotal(productId, quantity) {
+        const totalElement = document.getElementById(`total${productId}`);
+        if (!totalElement) return;
+
+        // Buscar el precio unitario
+        const priceText = totalElement.closest('.cart-panel-item')?.querySelector('.cart-item-price')?.textContent;
+        if (priceText) {
+            const unitPrice = parseFloat(priceText.replace('$', '').replace(' c/u', ''));
+            if (!isNaN(unitPrice)) {
+                const total = unitPrice * quantity;
+                totalElement.textContent = `$${total.toFixed(2)}`;
+            }
+        }
+    }
+
+    async handleRemoveItem(button) {
+        const productId = button.dataset.productId;
+        
+        if (!confirm('¿Estás seguro de que quieres eliminar este producto del carrito?')) {
+            return;
+        }
+
+        await this.removeCartItem(productId);
+    }
+
+    async updateCartItem(productId, quantity) {
+        try {
+            const formData = new URLSearchParams();
+            formData.append('quantity', quantity);
+            formData.append('csrfmiddlewaretoken', this.getCSRFToken());
+
+            const response = await fetch(`/carrito/actualizar/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': this.getCSRFToken(),
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.updateCartDisplay(data);
+                    MasivoTechUtils.showToast(data.message || 'Carrito actualizado', 'success');
+                    
+                    // Si el carrito quedó vacío después de actualizar, recargar panel
+                    if (data.cart_total_items === 0) {
+                        setTimeout(() => {
+                            this.reloadCartPanel();
+                        }, 1000);
+                    }
+                } else {
+                    throw new Error(data.message || 'Error del servidor');
+                }
+            } else {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+        } catch (error) {
+            MasivoTechUtils.showToast(error.message || 'Error al actualizar el carrito', 'error');
+            this.reloadCartPanel();
+        }
+    }
+
+    async removeCartItem(productId) {
+        try {
+            const formData = new URLSearchParams();
+            formData.append('csrfmiddlewaretoken', this.getCSRFToken());
+
+            const response = await fetch(`/carrito/remover/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': this.getCSRFToken(),
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.updateCartDisplay(data);
+                    MasivoTechUtils.showToast(data.message || 'Producto eliminado del carrito', 'success');
+                    
+                    // Recargar panel completo después de eliminar
+                    setTimeout(() => {
+                        this.reloadCartPanel();
+                    }, 500);
+                } else {
+                    throw new Error(data.message || 'Error del servidor');
+                }
+            } else {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+        } catch (error) {
+            MasivoTechUtils.showToast(error.message || 'Error al eliminar el producto', 'error');
+            this.reloadCartPanel();
+        }
+    }
+
+    updateCartDisplay(data) {
+        // Actualizar badge del carrito en el header
+        const badge = document.querySelector('.cart-badge');
+        const panelCount = document.getElementById('cartPanelCount');
+        
+        if (badge && data.cart_total_items !== undefined) {
+            badge.textContent = data.cart_total_items;
+            // Animación
+            badge.style.transform = 'scale(1.3)';
+            setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+            }, 300);
+        }
+        if (panelCount && data.cart_total_items !== undefined) {
+            panelCount.textContent = data.cart_total_items;
+        }
+
+        // Actualizar total del panel si está disponible
+        if (data.cart_total_price) {
+            const panelTotal = document.getElementById('cartPanelTotal');
+            if (panelTotal) {
+                panelTotal.textContent = `$${data.cart_total_price}`;
+            }
+        }
+
+        // Notificar al CartManager principal
+        if (window.cartManager && window.cartManager.updateGlobalCartBadge) {
+            window.cartManager.updateGlobalCartBadge(data.cart_total_items);
+        }
+    }
+
+    async reloadCartPanel() {
+        const contentElement = document.getElementById('cartPanelContent');
+        
+        if (!contentElement) return;
+
+        try {
+            const response = await fetch('/carrito/api/panel/');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const html = await response.text();
+            contentElement.innerHTML = html;
+            
+        } catch (error) {
+            // Mostrar error elegante
+            contentElement.innerHTML = `
+                <div class="cart-panel-error text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                    <p class="text-muted">Error al cargar el carrito</p>
+                    <button onclick="window.cartPanelSimple.reloadCartPanel()" class="btn btn-sm btn-outline-primary">
+                        Reintentar
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    getCSRFToken() {
+        let token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        if (!token && typeof MasivoTechUtils !== 'undefined') {
+            token = MasivoTechUtils.getCookie('csrftoken');
+        }
+        return token;
+    }
+
+    // Método para abrir el panel manualmente
+    openPanel() {
+        const cartPanel = document.getElementById('cartPanel');
+        const overlay = document.querySelector('.panel-overlay');
+        
+        if (cartPanel && overlay) {
+            cartPanel.classList.add('active');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Cargar contenido cuando se abre
+            this.reloadCartPanel();
+        }
+    }
+
+    // Método para cerrar el panel manualmente
+    closePanel() {
+        const cartPanel = document.getElementById('cartPanel');
+        const overlay = document.querySelector('.panel-overlay');
+        
+        if (cartPanel) {
+            cartPanel.classList.remove('active');
+        }
+        if (overlay) {
+            overlay.classList.remove('active');
+        }
+        
+        document.body.style.overflow = '';
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.cartPanelSimple = new CartPanelSimple();
+});
+
+// Hacer disponible globalmente
+window.CartPanelSimple = CartPanelSimple;
+
+------market/static/js/cart.js------
+// === cart.js - Con animación de confirmación ===
+
+class CartManager {
+    constructor() {
+        this.selectors = {
+            addButtons: '.add-to-cart-btn',
+            detailButtons: '.add-to-cart-btn-detail',
+            cartBadge: '.cart-badge'
+        };
+        
+        this.initialized = false;
+    }
+
+    init() {
+        if (this.initialized) return;
+
+        this.cleanupExistingListeners();
+        this.bindAddToCartEvents();
+        this.initialized = true;
+    }
+
+    cleanupExistingListeners() {
+        // Limpiar event listeners anteriores
+        document.querySelectorAll(this.selectors.addButtons).forEach(button => {
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+
+        document.querySelectorAll(this.selectors.detailButtons).forEach(button => {
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+    }
+
+    bindAddToCartEvents() {
+        document.querySelectorAll(this.selectors.addButtons).forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                this.handleAddToCart(button);
+            }, true);
+        });
+
+        document.querySelectorAll(this.selectors.detailButtons).forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                this.handleAddToCartDetail(button);
+            }, true);
+        });
+    }
+
+    handleAddToCart(button) {
+        const productId = button.dataset.productId;
+        if (!productId) return;
+        this.addProductToCart(productId, 1, button);
+    }
+
+    handleAddToCartDetail(button) {
+        const productId = button.dataset.productId;
+        const quantityInput = document.getElementById('quantity');
+        const quantity = quantityInput ? parseInt(quantityInput.value) : 1;
+        if (!productId || quantity < 1) return;
+        this.addProductToCart(productId, quantity, button);
+    }
+
+    async addProductToCart(productId, quantity, button) {
+        // Guardar estado original
+        const originalHTML = button.innerHTML;
+        const originalDisabled = button.disabled;
+        const originalClasses = button.className;
+        
+        // 🔄 1. ESTADO DE CARGA
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Agregando...';
+        button.disabled = true;
+        button.className = originalClasses + ' btn-loading';
+        
+        try {
+            const response = await fetch(`/carrito/agregar/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': this.getCSRFToken(),
+                },
+                body: new URLSearchParams({
+                    'quantity': quantity.toString(),
+                    'csrfmiddlewaretoken': this.getCSRFToken()
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                // ✅ 2. ESTADO DE ÉXITO (animación)
+                button.innerHTML = '<i class="fas fa-check me-2"></i>¡Agregado!';
+                button.className = originalClasses + ' btn-success';
+                button.style.transform = 'scale(1.05)';
+                button.style.transition = 'all 0.3s ease';
+                
+                MasivoTechUtils.showToast(data.message, 'success');
+                this.updateGlobalCartBadge(data.cart_total_items);
+                this.notifyCartPanel();
+                
+                // 🔄 3. RESTAURAR DESPUÉS DE 1.5 SEGUNDOS
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.disabled = originalDisabled;
+                    button.className = originalClasses;
+                    button.style.transform = 'scale(1)';
+                }, 1500);
+                
+            } else {
+                // ❌ ERROR - Restaurar inmediatamente
+                button.innerHTML = originalHTML;
+                button.disabled = originalDisabled;
+                button.className = originalClasses;
+                MasivoTechUtils.showToast(data.message, 'error');
+            }
+            
+        } catch (error) {
+            // ❌ ERROR - Restaurar inmediatamente
+            button.innerHTML = originalHTML;
+            button.disabled = originalDisabled;
+            button.className = originalClasses;
+            MasivoTechUtils.showToast('Error de conexión', 'error');
+        }
+    }
+
+    getCSRFToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+               (typeof MasivoTechUtils !== 'undefined' ? MasivoTechUtils.getCookie('csrftoken') : '');
+    }
+
+    notifyCartPanel() {
+        if (window.cartPanelSimple && window.cartPanelSimple.reloadCartPanel) {
+            window.cartPanelSimple.reloadCartPanel();
+        }
+    }
+
+    updateGlobalCartBadge(count) {
+        const badges = document.querySelectorAll('.cart-badge, #cartPanelCount');
+        badges.forEach(badge => {
+            if (badge) {
+                badge.textContent = count;
+                badge.style.transform = 'scale(1.3)';
+                setTimeout(() => badge.style.transform = 'scale(1)', 300);
+            }
+        });
+        
+        if (window.navigationManager && window.navigationManager.updateCartBadge) {
+            window.navigationManager.updateCartBadge(count);
+        }
+    }
+}
+
+// Inicialización
+if (!window.cartManager) {
+    document.addEventListener('DOMContentLoaded', () => {
+        window.cartManager = new CartManager();
+        window.cartManager.init();
+    });
+}
+
+------market/static/js/main.js------
+// === main.js - JavaScript Principal Optimizado ===
+
+/**
+ * Clase principal que maneja la inicialización de toda la aplicación
+ */
+class MasivoTechApp {
+    constructor() {
+        this.modules = new Map();
+        this.initialized = false;
+    }
+
+    /**
+     * Inicializa la aplicación y todos los módulos necesarios
+     */
+    init() {
+        if (this.initialized) return;
+        
+        // Inicializar módulos core que se necesitan en todas las páginas
+        this.initCoreModules();
+        
+        // Inicializar módulos específicos según la página actual
+        this.initPageSpecificModules();
+        
+        this.initialized = true;
+    }
+
+    /**
+     * Inicializa módulos core que se necesitan en todas las páginas
+     */
+    initCoreModules() {
+        // Tooltips de Bootstrap
+        this.initTooltips();
+        
+        // Sistema de notificaciones
+        this.initNotifications();
+    }
+
+    /**
+     * Inicializa módulos específicos según la página actual
+     */
+    initPageSpecificModules() {
+        const path = window.location.pathname;
+        
+        // Mapeo de rutas a módulos
+        const pageModules = {
+            '/carrito/': ['cart'],
+            '/productos/': ['cart', 'sorting'],
+            '/soporte/': ['chat'],
+            '/ofertas/': ['cart', 'offers'],
+            '/': ['cart']
+        };
+
+        // Encontrar módulos para la página actual
+        const modulesToLoad = Object.entries(pageModules)
+            .filter(([route]) => path.includes(route))
+            .flatMap(([, modules]) => modules);
+
+        // Para detalle de producto
+        if (path.includes('/producto/')) {
+            modulesToLoad.push('cart');
+            modulesToLoad.push('cartPanel');
+        }
+
+        // Cargar módulos únicos
+        [...new Set(modulesToLoad)].forEach(module => {
+            this.tryLoadModule(module);
+        });
+    }
+
+    /**
+     * Intenta cargar un módulo de forma segura
+     */
+    tryLoadModule(moduleName) {
+        try {
+            let module;
+            
+            switch (moduleName) {
+                case 'cart':
+                    if (typeof CartManager !== 'undefined') {
+                        module = new CartManager();
+                    }
+                    break;
+                case 'cartPanel':
+                    if (typeof CartPanelManager !== 'undefined') {
+                        module = new CartPanelManager();
+                    }
+                    break;
+                case 'sorting':
+                    if (typeof SortingManager !== 'undefined') {
+                        module = new SortingManager();
+                    }
+                    break;
+                case 'offers':
+                    if (typeof OffersManager !== 'undefined') {
+                        module = new OffersManager();
+                    }
+                    break;
+                case 'chat':
+                    if (typeof ChatManager !== 'undefined') {
+                        module = new ChatManager();
+                    }
+                    break;
+            }
+            
+            if (module && typeof module.init === 'function') {
+                this.modules.set(moduleName, module);
+                module.init();
+            }
+            
+        } catch (error) {
+            // Error silencioso para producción
+        }
+    }
+
+    /**
+     * Inicializa tooltips de Bootstrap
+     */
+    initTooltips() {
+        const tooltipElements = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        if (tooltipElements.length > 0 && typeof bootstrap !== 'undefined') {
+            tooltipElements.forEach(el => {
+                new bootstrap.Tooltip(el, {
+                    trigger: 'hover focus'
+                });
+            });
+        }
+    }
+
+    /**
+     * Inicializa el sistema de notificaciones
+     */
+    initNotifications() {
+        // Escuchar eventos personalizados de notificaciones
+        document.addEventListener('masivotech:notification', (e) => {
+            const { message, type = 'info', duration = 5000 } = e.detail;
+            if (typeof MasivoTechUtils !== 'undefined') {
+                MasivoTechUtils.showToast(message, type, duration);
+            }
+        });
+    }
+
+    /**
+     * Obtiene un módulo específico
+     */
+    getModule(moduleName) {
+        return this.modules.get(moduleName);
+    }
+
+    /**
+     * Verifica si un módulo está cargado
+     */
+    hasModule(moduleName) {
+        return this.modules.has(moduleName);
+    }
+
+    /**
+     * Actualiza todos los módulos del carrito
+     */
+    updateCartModules(data) {
+        // Notificar a CartManager si está cargado
+        if (this.modules.has('cart')) {
+            const cartManager = this.modules.get('cart');
+            if (cartManager.updateCartCounter) {
+                cartManager.updateCartCounter(data.cart_total_items);
+            }
+        }
+
+        // Notificar a CartPanelManager si está cargado
+        if (this.modules.has('cartPanel')) {
+            const cartPanelManager = this.modules.get('cartPanel');
+            if (cartPanelManager.updateCartBadge) {
+                cartPanelManager.updateCartBadge(data.cart_total_items);
+            }
+            if (cartPanelManager.loadCartContent) {
+                cartPanelManager.loadCartContent();
+            }
+        }
+
+        // Notificar a NavigationManager si está disponible
+        if (window.navigationManager && window.navigationManager.updateCartBadge) {
+            window.navigationManager.updateCartBadge(data.cart_total_items);
+        }
+    }
+}
+
+// Inicializar la aplicación cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.masivoTechApp = new MasivoTechApp();
+    window.masivoTechApp.init();
+});
+
+// Función global para actualizar el carrito desde cualquier parte
+window.updateMasivoTechCart = function(data) {
+    if (window.masivoTechApp) {
+        window.masivoTechApp.updateCartModules(data);
+    }
+};
+
+// Disparar evento de actualización del carrito
+window.dispatchCartUpdate = function(data) {
+    const event = new CustomEvent('masivotech:cartUpdate', {
+        detail: data
+    });
+    document.dispatchEvent(event);
+    
+    // También actualizar mediante la función global
+    window.updateMasivoTechCart(data);
+};
+
+// Auto-inicialización de módulos críticos como fallback
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar CartManager como fallback si no se cargó por main.js
+    setTimeout(() => {
+        if (typeof CartManager !== 'undefined' && !window.masivoTechApp?.getModule('cart')) {
+            window.cartManager = new CartManager();
+            window.cartManager.init();
+        }
+
+        // Inicializar CartPanelManager como fallback si no se cargó por main.js
+        if (typeof CartPanelManager !== 'undefined' && !window.masivoTechApp?.getModule('cartPanel')) {
+            window.cartPanelManager = new CartPanelManager();
+            window.cartPanelManager.init();
+        }
+    }, 1000);
+});
+
+// Mejoras para las nuevas tarjetas de productos
+class EnhancedProductCards {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.initQuickView();
+        this.initProductHover();
+        this.initLoadingStates();
+    }
+
+    initQuickView() {
+        // Quick view para productos
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-quick-view')) {
+                const productId = e.target.closest('.btn-quick-view').dataset.productId;
+                MasivoTechUtils.showToast('Vista rápida próximamente', 'info');
+            }
+        });
+    }
+
+    initProductHover() {
+        // Efectos hover mejorados
+        const productCards = document.querySelectorAll('.product-card');
+        
+        productCards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-8px)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+            });
+        });
+    }
+
+    initLoadingStates() {
+        // Estados de carga para los botones
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.add-to-cart-btn')) {
+                const btn = e.target.closest('.add-to-cart-btn');
+                const card = btn.closest('.product-card');
+                
+                // Agregar estado de carga temporal
+                card.classList.add('loading');
+                setTimeout(() => {
+                    card.classList.remove('loading');
+                }, 1500);
+            }
+        });
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.enhancedProductCards = new EnhancedProductCards();
+});
+
+------market/static/js/navigation.js------
+// === navigation.js - Sistema de Navegación y Paneles Laterales ===
+
+class NavigationManager {
+    constructor() {
+        this.selectors = {
+            mobileMenuToggle: '#mobileMenuToggle',
+            mobilePanel: '#mobilePanel',
+            mobilePanelClose: '#mobilePanelClose',
+            cartToggle: '.cart-toggle',
+            cartPanel: '#cartPanel',
+            cartPanelClose: '#cartPanelClose',
+            panelOverlay: '#panelOverlay',
+            mobileDropdownToggle: '.mobile-dropdown-toggle',
+            mobileDropdownMenu: '.mobile-dropdown-menu',
+            dropdownMenu: '.dropdown-menu',
+            navItemDropdown: '.nav-item.dropdown',
+            userDropdown: '.user-dropdown',
+            userDropdownMenu: '.user-dropdown-menu',
+            searchToggle: '.search-toggle'
+        };
+        
+        this.init();
+    }
+
+    init() {
+        this.bindMobileMenuEvents();
+        this.bindCartPanelEvents();
+        this.bindMobileDropdownEvents();
+        this.bindDesktopDropdownEvents();
+        this.bindUserDropdownEvents();
+        this.bindSearchEvents();
+        this.bindLogoutModal();
+        this.bindOverlayEvents();
+        this.bindEscapeKey();
+    }
+
+    /**
+     * Maneja el menú móvil
+     */
+    bindMobileMenuEvents() {
+        const toggle = document.querySelector(this.selectors.mobileMenuToggle);
+        const panel = document.querySelector(this.selectors.mobilePanel);
+        const closeBtn = document.querySelector(this.selectors.mobilePanelClose);
+
+        if (toggle && panel) {
+            toggle.addEventListener('click', () => {
+                this.openPanel(panel);
+            });
+        }
+
+        if (closeBtn && panel) {
+            closeBtn.addEventListener('click', () => {
+                this.closePanel(panel);
+            });
+        }
+    }
+
+    /**
+     * Maneja el panel del carrito
+     */
+    bindCartPanelEvents() {
+        const toggle = document.querySelector(this.selectors.cartToggle);
+        const panel = document.querySelector(this.selectors.cartPanel);
+        const closeBtn = document.querySelector(this.selectors.cartPanelClose);
+
+        if (toggle && panel) {
+            toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openPanel(panel);
+            });
+        }
+
+        if (closeBtn && panel) {
+            closeBtn.addEventListener('click', () => {
+                this.closePanel(panel);
+            });
+        }
+    }
+
+    /**
+     * Maneja los dropdowns en móvil
+     */
+    bindMobileDropdownEvents() {
+        const dropdownToggles = document.querySelectorAll(this.selectors.mobileDropdownToggle);
+        
+        dropdownToggles.forEach(toggle => {
+            toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const dropdown = toggle.nextElementSibling;
+                
+                if (dropdown && dropdown.classList.contains('mobile-dropdown-menu')) {
+                    // Cerrar otros dropdowns
+                    document.querySelectorAll('.mobile-dropdown-menu').forEach(menu => {
+                        if (menu !== dropdown) {
+                            menu.classList.remove('active');
+                            // Resetear íconos
+                            const otherIcons = menu.previousElementSibling?.querySelector('i');
+                            if (otherIcons) {
+                                otherIcons.classList.remove('fa-chevron-up');
+                                otherIcons.classList.add('fa-chevron-down');
+                            }
+                        }
+                    });
+                    
+                    // Toggle este dropdown
+                    dropdown.classList.toggle('active');
+                    
+                    // Rotar ícono
+                    const icon = toggle.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('fa-chevron-down');
+                        icon.classList.toggle('fa-chevron-up');
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Maneja los dropdowns en desktop
+     */
+    bindDesktopDropdownEvents() {
+        const dropdownItems = document.querySelectorAll(this.selectors.navItemDropdown);
+        
+        dropdownItems.forEach(item => {
+            const dropdownMenu = item.querySelector(this.selectors.dropdownMenu);
+            
+            if (dropdownMenu) {
+                // Hover para abrir
+                item.addEventListener('mouseenter', () => {
+                    if (window.innerWidth > 991) {
+                        dropdownMenu.style.opacity = '1';
+                        dropdownMenu.style.visibility = 'visible';
+                        dropdownMenu.style.transform = 'translateY(0)';
+                    }
+                });
+                
+                // Hover para cerrar
+                item.addEventListener('mouseleave', () => {
+                    if (window.innerWidth > 991) {
+                        dropdownMenu.style.opacity = '0';
+                        dropdownMenu.style.visibility = 'hidden';
+                        dropdownMenu.style.transform = 'translateY(-10px)';
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Maneja el dropdown del usuario
+     */
+    bindUserDropdownEvents() {
+        const userDropdowns = document.querySelectorAll(this.selectors.userDropdown);
+        
+        userDropdowns.forEach(dropdown => {
+            const toggle = dropdown.querySelector('.user-toggle');
+            const menu = dropdown.querySelector(this.selectors.userDropdownMenu);
+            
+            if (toggle && menu) {
+                // Click para abrir/cerrar
+                toggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Cerrar otros dropdowns de usuario
+                    document.querySelectorAll('.user-dropdown-menu').forEach(otherMenu => {
+                        if (otherMenu !== menu) {
+                            otherMenu.style.opacity = '0';
+                            otherMenu.style.visibility = 'hidden';
+                        }
+                    });
+                    
+                    // Toggle este dropdown
+                    const isVisible = menu.style.opacity === '1';
+                    if (isVisible) {
+                        menu.style.opacity = '0';
+                        menu.style.visibility = 'hidden';
+                        menu.style.transform = 'translateY(-10px)';
+                    } else {
+                        menu.style.opacity = '1';
+                        menu.style.visibility = 'visible';
+                        menu.style.transform = 'translateY(0)';
+                    }
+                });
+            }
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.user-dropdown')) {
+                document.querySelectorAll('.user-dropdown-menu').forEach(menu => {
+                    menu.style.opacity = '0';
+                    menu.style.visibility = 'hidden';
+                    menu.style.transform = 'translateY(-10px)';
+                });
+            }
+        });
+
+        // Cerrar dropdown con Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.user-dropdown-menu').forEach(menu => {
+                    menu.style.opacity = '0';
+                    menu.style.visibility = 'hidden';
+                    menu.style.transform = 'translateY(-10px)';
+                });
+            }
+        });
+    }
+
+    /**
+     * Maneja la búsqueda
+     */
+    bindSearchEvents() {
+        const searchToggle = document.querySelector(this.selectors.searchToggle);
+        
+        if (searchToggle) {
+            searchToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.createSearchModal();
+            });
+        }
+    }
+
+    /**
+     * Crea un modal de búsqueda elegante
+     */
+    createSearchModal() {
+        // Crear overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'search-overlay';
+        
+        // Crear modal
+        const modal = document.createElement('div');
+        modal.className = 'search-modal';
+        
+        modal.innerHTML = `
+            <div class="search-modal-header">
+                <h3>Buscar Productos</h3>
+                <button class="search-close-btn" aria-label="Cerrar búsqueda">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form class="search-modal-form" method="GET" action="/productos/">
+                <input type="text" 
+                       name="q" 
+                       placeholder="¿Qué producto estás buscando?"
+                       autocomplete="off"
+                       autofocus>
+                <button type="submit" aria-label="Buscar">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Animación de entrada
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            modal.style.transform = 'translateY(0) scale(1)';
+        }, 10);
+
+        // Cerrar modal
+        const closeBtn = modal.querySelector('.search-close-btn');
+        const closeModal = () => {
+            overlay.style.opacity = '0';
+            modal.style.transform = 'translateY(-20px) scale(0.95)';
+            setTimeout(() => {
+                if (overlay.parentNode) {
+                    document.body.removeChild(overlay);
+                }
+            }, 300);
+        };
+
+        closeBtn.addEventListener('click', closeModal);
+
+        // Cerrar al hacer click fuera
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeModal();
+            }
+        });
+
+        // Cerrar con Escape
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        // Enviar formulario
+        const form = modal.querySelector('.search-modal-form');
+        const input = form.querySelector('input[name="q"]');
+        
+        form.addEventListener('submit', (e) => {
+            if (!input.value.trim()) {
+                e.preventDefault();
+                input.focus();
+            }
+        });
+
+        // Focus en el input
+        input.focus();
+    }
+
+    /**
+     * Maneja el modal de cerrar sesión
+     */
+    bindLogoutModal() {
+        const logoutLinks = document.querySelectorAll('a[data-bs-target="#logoutModal"], .mobile-dropdown-item[data-bs-target="#logoutModal"]');
+        
+        logoutLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Cerrar el panel móvil si está abierto
+                this.closeAllPanels();
+                
+                this.showLogoutModal();
+            });
+        });
+        
+        // Manejar el modal
+        const logoutModal = document.getElementById('logoutModal');
+        if (logoutModal) {
+            // Botón cerrar
+            const closeBtn = logoutModal.querySelector('.btn-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    this.hideLogoutModal();
+                });
+            }
+            
+            // Botón cancelar
+            const cancelBtn = logoutModal.querySelector('.cancel-btn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    this.hideLogoutModal();
+                });
+            }
+            
+            // Cerrar modal al hacer click fuera
+            logoutModal.addEventListener('click', (e) => {
+                if (e.target === logoutModal) {
+                    this.hideLogoutModal();
+                }
+            });
+        }
+        
+        // Cerrar con Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideLogoutModal();
+            }
+        });
+    }
+
+    /**
+     * Muestra el modal de cerrar sesión
+     */
+    showLogoutModal() {
+        const modal = document.getElementById('logoutModal');
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-backdrop fade show';
+        overlay.style.cssText = 'z-index: 1040;';
+        
+        if (modal) {
+            modal.style.display = 'block';
+            modal.style.opacity = '1';
+            modal.classList.add('show');
+            document.body.appendChild(overlay);
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    /**
+     * Oculta el modal de cerrar sesión
+     */
+    hideLogoutModal() {
+        const modal = document.getElementById('logoutModal');
+        const backdrop = document.querySelector('.modal-backdrop');
+        
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+        }
+        
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        document.body.style.overflow = '';
+    }
+
+    /**
+     * Maneja el overlay
+     */
+    bindOverlayEvents() {
+        const overlay = document.querySelector(this.selectors.panelOverlay);
+        
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                this.closeAllPanels();
+            });
+        }
+    }
+
+    /**
+     * Maneja la tecla Escape
+     */
+    bindEscapeKey() {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeAllPanels();
+                this.hideLogoutModal();
+            }
+        });
+    }
+
+    /**
+     * Abre un panel lateral
+     */
+    openPanel(panel) {
+        const overlay = document.querySelector(this.selectors.panelOverlay);
+        
+        if (panel && overlay) {
+            panel.classList.add('active');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    /**
+     * Cierra un panel lateral
+     */
+    closePanel(panel) {
+        const overlay = document.querySelector(this.selectors.panelOverlay);
+        
+        if (panel && overlay) {
+            panel.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    /**
+     * Cierra todos los paneles
+     */
+    closeAllPanels() {
+        const panels = document.querySelectorAll('.mobile-panel, .cart-panel');
+        const overlay = document.querySelector(this.selectors.panelOverlay);
+        
+        panels.forEach(panel => {
+            panel.classList.remove('active');
+        });
+        
+        if (overlay) {
+            overlay.classList.remove('active');
+        }
+        
+        document.body.style.overflow = '';
+        
+        // Cerrar todos los dropdowns móviles
+        document.querySelectorAll('.mobile-dropdown-menu').forEach(menu => {
+            menu.classList.remove('active');
+            // Resetear íconos
+            const icons = menu.previousElementSibling?.querySelector('i');
+            if (icons) {
+                icons.classList.remove('fa-chevron-up');
+                icons.classList.add('fa-chevron-down');
+            }
+        });
+        
+        // Cerrar dropdowns de usuario
+        document.querySelectorAll('.user-dropdown-menu').forEach(menu => {
+            menu.style.opacity = '0';
+            menu.style.visibility = 'hidden';
+            menu.style.transform = 'translateY(-10px)';
+        });
+    }
+
+    /**
+     * Actualiza el badge del carrito
+     */
+    updateCartBadge(count) {
+        const badge = document.querySelector('.cart-badge');
+        if (badge) {
+            badge.textContent = count;
+            
+            // Animación
+            badge.style.transform = 'scale(1.3)';
+            setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+            }, 300);
+        }
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.navigationManager = new NavigationManager();
+});
+
+------market/static/js/offers.js------
+// === offers.js - Gestor de Ofertas ===
+
+class OffersManager {
+    constructor() {
+        this.selectors = {
+            offerCards: '.offer-card',
+            offerBadges: '.offer-badge'
+        };
+        
+        this.init();
+    }
+
+    init() {
+        this.bindOfferEvents();
+    }
+
+    /**
+     * Vincula eventos de ofertas
+     */
+    bindOfferEvents() {
+        const offerCards = document.querySelectorAll(this.selectors.offerCards);
+        
+        offerCards.forEach(card => {
+            // Efecto hover mejorado para ofertas
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-8px) scale(1.02)';
+                card.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.15)';
+                card.style.transition = 'all 0.3s ease';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0) scale(1)';
+                card.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            });
+        });
+    }
+
+    /**
+     * Destaca productos en oferta
+     */
+    highlightOffers() {
+        const offerBadges = document.querySelectorAll(this.selectors.offerBadges);
+        
+        offerBadges.forEach(badge => {
+            // Animación pulsante para badges de oferta
+            badge.style.animation = 'pulse 2s infinite';
+        });
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.offersManager = new OffersManager();
+});
+
+// Animación CSS para badges de oferta
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+`;
+document.head.appendChild(style);
+
+------market/static/js/sorting.js------
+// === sorting.js - Sistema de Ordenamiento ===
+
+class SortingManager {
+    constructor() {
+        this.selectors = {
+            sortSelect: 'select[onchange*="updateUrlParameter"]',
+            sortDropdown: '.sort-dropdown',
+            productsGrid: '.products-grid'
+        };
+        
+        this.init();
+    }
+
+    init() {
+        this.bindSortingEvents();
+    }
+
+    /**
+     * Vincula eventos de ordenamiento
+     */
+    bindSortingEvents() {
+        // Select de ordenamiento
+        const sortSelect = document.querySelector(this.selectors.sortSelect);
+        
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                const sortValue = e.target.value;
+                this.applySorting(sortValue);
+            });
+        }
+
+        // Mostrar loading al cambiar ordenamiento
+        this.addLoadingIndicator();
+    }
+
+    /**
+     * Aplica el ordenamiento seleccionado
+     */
+    applySorting(sortValue) {
+        const currentUrl = new URL(window.location.href);
+        
+        if (sortValue) {
+            currentUrl.searchParams.set('sort', sortValue);
+        } else {
+            currentUrl.searchParams.delete('sort');
+        }
+        
+        // Mostrar estado de loading
+        this.showLoadingState();
+        
+        // Navegar a la nueva URL
+        window.location.href = currentUrl.toString();
+    }
+
+    /**
+     * Muestra estado de loading
+     */
+    showLoadingState() {
+        const productsGrid = document.querySelector(this.selectors.productsGrid);
+        if (productsGrid) {
+            productsGrid.style.opacity = '0.7';
+            productsGrid.style.transition = 'opacity 0.3s ease';
+        }
+        
+        MasivoTechUtils.showToast('Aplicando ordenamiento...', 'info', 2000);
+    }
+
+    /**
+     * Agrega indicador de loading al DOM
+     */
+    addLoadingIndicator() {
+        // Puedes agregar un spinner visual si lo necesitas
+        const style = document.createElement('style');
+        style.textContent = `
+            .sorting-loading {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 1rem 2rem;
+                border-radius: 8px;
+                z-index: 9999;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    window.sortingManager = new SortingManager();
+});
+
+------market/static/js/utils.js------
+// === utils.js - Utilidades Generales Optimizadas ===
+
+/**
+ * Utilidades generales para MasivoTech
+ * Funciones reutilizables y helpers
+ */
+class MasivoTechUtils {
+    /**
+     * Obtiene el valor de una cookie por nombre
+     */
+    static getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }
+
+    /**
+     * Muestra una notificación toast
+     */
+    static showToast(message, type = 'info', duration = 5000) {
+        // Crear contenedor de toasts si no existe
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        const toast = this.createToastElement(message, type);
+        toastContainer.appendChild(toast);
+
+        // Auto-remover después de la duración
+        setTimeout(() => {
+            this.removeToast(toast);
+        }, duration);
+
+        return toast;
+    }
+
+    /**
+     * Crea elemento toast
+     */
+    static createToastElement(message, type) {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        const icons = {
+            success: 'check-circle',
+            error: 'exclamation-triangle',
+            warning: 'exclamation-circle',
+            info: 'info-circle'
+        };
+
+        toast.innerHTML = `
+            <div class="toast-content">
+                <i class="fas fa-${icons[type] || 'info-circle'} toast-icon"></i>
+                <div class="toast-message">${message}</div>
+                <button class="toast-close" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Agregar funcionalidad de cerrar
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => this.removeToast(toast));
+
+        // Animar entrada
+        requestAnimationFrame(() => {
+            toast.classList.add('toast-show');
+        });
+
+        return toast;
+    }
+
+    /**
+     * Remueve toast con animación
+     */
+    static removeToast(toast) {
+        toast.classList.remove('toast-show');
+        toast.classList.add('toast-hide');
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }
+
+    /**
+     * Formatea precio en formato argentino
+     */
+    static formatPrice(price) {
+        return new Intl.NumberFormat('es-AR', {
+            style: 'currency',
+            currency: 'ARS'
+        }).format(price);
+    }
+
+    /**
+     * Valida formato de email
+     */
+    static isValidEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    /**
+     * Valida formato de teléfono argentino
+     */
+    static isValidPhone(phone) {
+        const phoneRegex = /^(\+54|54|0)?(9|11|15)?[2-9]\d{7}$/;
+        return phoneRegex.test(phone.replace(/\s/g, ''));
+    }
+
+    /**
+     * Debounce function para optimizar eventos
+     */
+    static debounce(func, wait, immediate = false) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                timeout = null;
+                if (!immediate) func(...args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func(...args);
+        };
+    }
+
+    /**
+     * Throttle function para limitar ejecuciones
+     */
+    static throttle(func, limit) {
+        let inThrottle;
+        return function(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    }
+
+    /**
+     * Maneja errores de API de forma consistente
+     */
+    static handleApiError(error, context = '') {
+        let userMessage = 'Ocurrió un error inesperado. Por favor, intenta nuevamente.';
+        
+        if (error.message.includes('NetworkError')) {
+            userMessage = 'Error de conexión. Verifica tu conexión a internet.';
+        } else if (error.message.includes('Failed to fetch')) {
+            userMessage = 'No se pudo conectar con el servidor. Intenta más tarde.';
+        }
+        
+        this.showToast(userMessage, 'error');
+        return userMessage;
+    }
+
+    /**
+     * Realiza peticiones fetch con manejo de errores
+     */
+    static async fetchWithErrorHandling(url, options = {}) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': this.getCookie('csrftoken'),
+                    ...options.headers
+                },
+                ...options
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            throw this.handleApiError(error, 'fetch');
+        }
+    }
+
+    /**
+     * Scroll suave a un elemento
+     */
+    static smoothScrollTo(element, offset = 0) {
+        const elementPosition = element.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+
+    /**
+     * Detecta si el dispositivo es móvil
+     */
+    static isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    /**
+     * Detecta si el usuario prefiere motion reducido
+     */
+    static prefersReducedMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+}
+
+// Hacer utilidades disponibles globalmente
+window.MasivoTechUtils = MasivoTechUtils;
+

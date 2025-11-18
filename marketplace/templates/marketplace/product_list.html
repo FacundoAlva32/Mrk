@@ -1,0 +1,394 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+.products-header {
+    background: var(--primary-gray);
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.filter-sidebar {
+    background: white;
+    border-radius: var(--border-radius-lg);
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-section {
+    margin-bottom: 2rem;
+}
+
+.filter-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--primary-black);
+}
+
+.filter-options {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.filter-option {
+    margin-bottom: 0.5rem;
+}
+
+.filter-link {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.filter-link:hover,
+.filter-link.active {
+    color: var(--primary-black);
+    font-weight: 500;
+}
+
+.filter-link.active {
+    color: var(--accent-red);
+}
+
+.filter-icon {
+    margin-right: 0.5rem;
+    width: 16px;
+    text-align: center;
+}
+
+.products-toolbar {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.results-count {
+    color: var(--text-light);
+    font-size: 0.875rem;
+}
+
+.sorting-options {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.sort-label {
+    font-size: 0.875rem;
+    color: var(--text-light);
+    margin-right: 0.5rem;
+}
+
+.active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.filter-tag {
+    background: var(--primary-gray);
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-remove {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.filter-remove:hover {
+    color: var(--accent-red);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+        <!-- 🎯 Encabezado de Página -->
+        <div class="products-header">
+            <div class="container">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        {% if search_query %}
+                        <i class="fas fa-search me-2"></i>
+                        Resultados para "{{ search_query }}"
+                        {% elif selected_category %}
+                        <i class="fas fa-{{ selected_category|slice:':3' }} me-2"></i>
+                        {{ selected_category|title }}
+                        {% else %}
+                        <i></i>
+                        Todos los Productos
+                        {% endif %}
+                    </h1>
+                    
+                    {% if search_query %}
+                    <p class="page-subtitle">
+                        Encontrados {{ products.count }} producto{{ products.count|pluralize }}
+                        {% if selected_category %}en {{ selected_category }}{% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+         <div class="products-layout">
+
+            </div>
+        </aside>
+        <!-- 📦 Área de Productos -->
+        <main class="products-main">
+            <!-- Barra de Herramientas -->
+            <div class="products-toolbar">
+                <!-- Contador de Resultados -->
+                <div class="results-count">
+                    <i class="fas fa-cube me-1"></i>
+                    {{ products.count }} producto{{ products.count|pluralize }} encontrado{{ products.count|pluralize }}
+                </div>
+
+                <!-- Ordenamiento -->
+                <div class="sorting-options">
+                    <span class="sort-label">Ordenar por:</span>
+                    <select class="form-select form-select-sm" onchange="window.location.href = updateUrlParameter('sort', this.value)">
+                        <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Nombre</option>
+                        <option value="price_low" {% if sort_by == 'price_low' %}selected{% endif %}>Precio: Menor a Mayor</option>
+                        <option value="price_high" {% if sort_by == 'price_high' %}selected{% endif %}>Precio: Mayor a Menor</option>
+                        <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Más Nuevos</option>
+                    </select>
+                </div>
+            </div>
+
+<!-- 📦 Grid de Productoso -->
+            <div class="products-grid">
+                {% for product in products %}
+                <div class="product-card" data-product-id="{{ product.id }}">
+                    <div class="product-image-wrapper">
+                        <a href="{% url 'product_detail' product.id %}" class="product-image-link">
+                            {% if product.image %}
+                            <img src="{{ product.image.url }}" 
+                                alt="{{ product.name }}" 
+                                class="product-img"
+                                loading="lazy">
+                            {% else %}
+                            <div class="product-image-placeholder">
+                                <i class="fas fa-gamepad"></i>
+                            </div>
+                            {% endif %}
+                        </a>
+                        
+                        <!-- Badges compactos -->
+                        <div class="product-badges">
+                            {% if product.stock <= 0 %}
+                            <span class="badge badge-out">
+                                <i class="fas fa-ban"></i>
+                                AGOTADO
+                            </span>
+                            {% elif product.stock < 5 %}
+                            <span class="badge badge-warning">
+                                <i class="fas fa-bolt"></i>
+                                POCO STOCK
+                            </span>
+                            {% endif %}
+                            
+                            {% if product.created_at > now|date:"Y-m-d"|add:"-7 days" %}
+                            <span class="badge badge-new">
+                                <i class="fas fa-star"></i>
+                                NUEVO
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Quick Action -->
+                        <div class="product-quick-action">
+                            <button class="btn-quick-view" data-product-id="{{ product.id }}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Información compacta -->
+                    <div class="product-info">
+                        <div class="product-category">
+                            {{ product.get_category_display }}
+                        </div>
+                        
+                        <h3 class="product-title">
+                            <a href="{% url 'product_detail' product.id %}">
+                                {{ product.name|truncatewords:4 }}
+                            </a>
+                        </h3>
+                        
+                        <div class="product-price-section">
+                            <span class="product-price">{{ product.get_price_in_pesos }}</span>
+                        </div>
+                        
+                        
+                        <!-- Stock info compacta -->
+                        <div class="product-stock">
+                            {% if product.stock > 10 %}
+                            <span class="stock-available">
+                                <i class="fas fa-check-circle"></i>
+                                En stock
+                            </span>
+                            {% elif product.stock > 0 %}
+                            <span class="stock-low">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {{ product.stock }} disp.
+                            </span>
+                            {% else %}
+                            <span class="stock-out">
+                                <i class="fas fa-times-circle"></i>
+                                Agotado
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Acciones compactas -->
+                    <div class="product-actions">
+                        {% if product.stock > 0 %}
+                        <button type="button" 
+                                class="btn btn-dark add-to-cart-btn" 
+                                data-product-id="{{ product.id }}">
+                            <i class="fas fa-cart-plus me-1"></i>
+                            <span class="btn-text">Agregar</span>
+                        </button>
+                        {% else %}
+                        <button class="btn btn-outline-dark" disabled>
+                            <i class="fas fa-bell me-1"></i>
+                            <span class="btn-text">Notificar</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <!-- Estado vacío que ocupa todo el ancho -->
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-search fa-2x"></i>
+                    </div>
+                    <h3 class="empty-state-title">
+                        {% if search_query %}
+                        No se encontraron productos
+                        {% elif selected_category %}
+                        No hay productos en esta categoría
+                        {% else %}
+                        No hay productos disponibles
+                        {% endif %}
+                    </h3>
+                    <p class="empty-state-text">
+                        {% if search_query %}
+                        No hay resultados para "{{ search_query }}"
+                        {% elif selected_category %}
+                        Próximamente agregaremos productos en "{{ selected_category|title }}"
+                        {% else %}
+                        Estamos actualizando nuestro catálogo
+                        {% endif %}
+                    </p>
+                    <div class="empty-state-actions">
+                        {% if search_query or selected_category %}
+                        <a href="{% url 'product_list' %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>
+                            Limpiar Filtros
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'ofertas' %}" class="btn btn-outline-dark btn-sm">
+                            <i class="fas fa-fire me-1"></i>
+                            Ver Ofertas
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Paginación (para futura implementación) -->
+            {% if products.has_other_pages %}
+            <nav class="products-pagination">
+                <ul class="pagination">
+                    {% if products.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ products.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if sort_by != 'name' %}&sort={{ sort_by }}{% endif %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in products.paginator.page_range %}
+                    <li class="page-item {% if products.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if sort_by != 'name' %}&sort={{ sort_by }}{% endif %}">
+                            {{ num }}
+                        </a>
+                    </li>
+                    {% endfor %}
+
+                    {% if products.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ products.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if sort_by != 'name' %}&sort={{ sort_by }}{% endif %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Función para actualizar parámetros URL
+function updateUrlParameter(param, value) {
+    const url = new URL(window.location);
+    url.searchParams.set(param, value);
+    return url.toString();
+}
+
+// Inicializar funcionalidades específicas
+document.addEventListener('DOMContentLoaded', function() {
+    // Mejorar experiencia de filtros
+    const filterLinks = document.querySelectorAll('.filter-link');
+    
+    filterLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Agregar efecto de loading
+            const productsGrid = document.querySelector('.products-grid');
+            if (productsGrid) {
+                productsGrid.classList.add('loading');
+            }
+        });
+    });
+    
+    // Mejorar accesibilidad del dropdown de ordenamiento
+    const sortSelect = document.querySelector('.form-select');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            // Mostrar indicador de loading
+            MasivoTechUtils.showToast('Aplicando ordenamiento...', 'info');
+        });
+    }
+});
+</script>
+{% endblock %}

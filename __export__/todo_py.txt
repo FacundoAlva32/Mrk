@@ -1,0 +1,2694 @@
+------market/manage.py------
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+
+
+------market/scrape_mercado_libre.py------
+import os
+import django
+import requests
+from django.core.files.base import ContentFile
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+django.setup()
+
+from marketplace.models import Product
+
+def get_argentina_products():
+    """Productos con precios reales de Argentina"""
+    
+    argentina_peripherals = [
+        {
+            'name': 'Teclado Redragon Kumara K552',
+            'description': 'Teclado mecánico gaming retroiluminado, switches Outemu Blue, antighosting.',
+            'price': 25999,
+            'category': 'teclados',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_614206-MLA48677918436_122021-F.webp'
+        },
+        {
+            'name': 'Mouse Logitech G203 Lightsync',
+            'description': 'Mouse gaming con sensor 8000 DPI, iluminación RGB Lightsync, 6 botones.',
+            'price': 18999,
+            'category': 'mouses', 
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_836580-MLA43824365525_102020-F.webp'
+        },
+        {
+            'name': 'Auriculares HyperX Cloud Stinger',
+            'description': 'Auriculares gaming con sonido stereo, micrófono con cancelación de ruido.',
+            'price': 32999,
+            'category': 'auriculares',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_822507-MLA31002772475_062019-F.webp'
+        },
+        {
+            'name': 'Monitor Samsung 24" F390',
+            'description': 'Monitor LED 24" Full HD, panel VA, 60Hz, diseño sin bordes.',
+            'price': 89999,
+            'category': 'monitores',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_679224-MLA48678692861_122021-F.webp'
+        },
+        {
+            'name': 'Silla Gamer X-Vision',
+            'description': 'Silla gaming ergonómica, soporte lumbar, reclinable, base metálica.',
+            'price': 78999,
+            'category': 'sillas',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_850011-MLA49879623517_052022-F.webp'
+        },
+        {
+            'name': 'Mousepad Redragon Flick',
+            'description': 'Mousepad gaming tamaño XXL, base antideslizante, superficie optimizada.',
+            'price': 8999,
+            'category': 'otros',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_750380-MLA48678027336_122021-F.webp'
+        }
+    ]
+    
+    return argentina_peripherals
+
+def create_argentina_products():
+    """Crea productos con precios reales de Argentina"""
+    
+    products_data = get_argentina_products()
+    created_count = 0
+    
+    for product_info in products_data:
+        if not Product.objects.filter(name=product_info['name']).exists():
+            
+            product = Product(
+                name=product_info['name'],
+                description=product_info['description'],
+                price=product_info['price'],
+                category=product_info['category'],
+                stock=15,
+                available=True
+            )
+            
+            # Descargar imagen
+            try:
+                response = requests.get(product_info['image_url'])
+                if response.status_code == 200:
+                    file_name = f"{product_info['name'].replace(' ', '_').lower()}.jpg"
+                    image_file = ContentFile(response.content, name=file_name)
+                    product.image.save(file_name, image_file)
+            except:
+                product.image = 'products/default_product.jpg'
+            
+            product.save()
+            created_count += 1
+            print(f"✅ {product_info['name']} - ${product_info['price']}")
+    
+    print(f"\n🇦🇷 CREADOS {created_count} PRODUCTOS CON PRECIOS ARGENTINOS!")
+
+if __name__ == "__main__":
+    create_argentina_products()
+
+------market/scrape_products.py------
+import os
+import django
+import requests
+import json
+from django.core.files.base import ContentFile
+
+# Configurar Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+django.setup()
+
+from marketplace.models import Product
+
+def get_products_from_api():
+    """Obtiene productos reales de APIs de periféricos"""
+    
+    # API 1: FakeStore API (productos de ejemplo)
+    try:
+        response = requests.get('https://fakestoreapi.com/products/category/electronics')
+        electronics = response.json()
+    except:
+        electronics = []
+    
+    # Datos de periféricos predefinidos (como fallback)
+    predefined_peripherals = [
+        {
+            'name': 'Logitech G Pro X Superlight',
+            'description': 'Mouse gaming inalámbrico ultraligero, sensor HERO 25K, 63g de peso.',
+            'price': 45999,
+            'category': 'mouses',
+            'image_url': 'https://resource.logitechg.com/w_386,c_limit,f_auto,q_auto,dpr_2.0/d_transparent.gif/content/dam/gaming/en/products/pro-x-superlight/pro-x-superlight-gallery-1.png'
+        },
+        {
+            'name': 'Razer BlackWidow V3',
+            'description': 'Teclado mecánico gaming con switches Green Razer, iluminación Chroma RGB.',
+            'price': 38999,
+            'category': 'teclados',
+            'image_url': 'https://assets2.razerzone.com/images/blackwidow-v3/carousel/razer-blackwidow-v3-1.png'
+        },
+        {
+            'name': 'SteelSeries Arctis Pro',
+            'description': 'Auriculares gaming High Fidelity con sonido surround DTS Headphone:X v2.0.',
+            'price': 67999,
+            'category': 'auriculares',
+            'image_url': 'https://steelseries.com/cloudfront/images/products/arctis-pro-wireless/main.png'
+        },
+        {
+            'name': 'Samsung Odyssey G7',
+            'description': 'Monitor gaming curved 32" 240Hz QLED, 1ms, resolución 2560x1440.',
+            'price': 189999,
+            'category': 'monitores',
+            'image_url': 'https://images.samsung.com/is/image/samsung/p6pim/ar/lc32g75tbslxar/gallery/ar-g7-g75t-lc32g75tbslxar-53223-532203533?$650_519_PNG$'
+        },
+        {
+            'name': 'HyperX Alloy Origins',
+            'description': 'Teclado mecánico gaming con switches HyperX Red, aluminum body, RGB.',
+            'price': 32999,
+            'category': 'teclados',
+            'image_url': 'https://www.hyperxgaming.com/content/dam/hyperx/category/keyboards/alloy-origins-core-keyboard/ugc/alloy-origins-core-keyboard-1.png'
+        },
+        {
+            'name': 'Corsair K95 RGB Platinum',
+            'description': 'Teclado gaming mecánico con switches Cherry MX, 8MB de almacenamiento, RGB.',
+            'price': 54999,
+            'category': 'teclados',
+            'image_url': 'https://www.corsair.com/medias/sys_master/images/images/h5d/h2d/9117867506718/-CH-9127114-NA-Gallery-K95-RGB-Platinum-01.png'
+        },
+        {
+            'name': 'Razer Viper Ultimate',
+            'description': 'Mouse gaming inalámbrico con dock de carga, sensor Focus+ 20K DPI.',
+            'price': 51999,
+            'category': 'mouses',
+            'image_url': 'https://assets2.razerzone.com/images/viper-ultimate/carousel/razer-viper-ultimate-1.png'
+        },
+        {
+            'name': 'HyperX Cloud Flight',
+            'description': 'Auriculares inalámbricos gaming, 30h de batería, micrófono desmontable.',
+            'price': 42999,
+            'category': 'auriculares',
+            'image_url': 'https://www.hyperxgaming.com/content/dam/hyperx/category/headsets/cloud-flight-wireless-gaming-headset/ugc/cloud-flight-wireless-gaming-headset-1.png'
+        }
+    ]
+    
+    return predefined_peripherals
+
+def download_product_image(image_url, product_name):
+    """Descarga la imagen del producto"""
+    try:
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            file_name = f"{product_name.replace(' ', '_').lower()}.jpg"
+            return ContentFile(response.content, name=file_name)
+    except:
+        pass
+    return None
+
+def create_real_products():
+    """Crea productos reales en la base de datos"""
+    
+    products_data = get_products_from_api()
+    created_count = 0
+    
+    for product_info in products_data:
+        # Verificar si el producto ya existe
+        if not Product.objects.filter(name=product_info['name']).exists():
+            
+            # Crear producto
+            product = Product(
+                name=product_info['name'],
+                description=product_info['description'],
+                price=product_info['price'],
+                category=product_info['category'],
+                stock=20,  # Stock por defecto
+                available=True
+            )
+            
+            # Descargar y asignar imagen
+            image_file = download_product_image(product_info['image_url'], product_info['name'])
+            if image_file:
+                product.image.save(f"{product_info['name'].replace(' ', '_')}.jpg", image_file)
+            else:
+                # Imagen por defecto si no se puede descargar
+                product.image = 'products/default_product.jpg'
+            
+            product.save()
+            created_count += 1
+            print(f"✅ {product_info['name']} - ${product_info['price']}")
+    
+    print(f"\n🎉 CREADOS {created_count} PRODUCTOS REALES!")
+    print("📍 Puedes verlos en: http://127.0.0.1:8000/productos/")
+
+if __name__ == "__main__":
+    create_real_products()
+
+------market/ultimos_productos.py------
+
+
+------market/unir.py------
+import os
+
+# Carpetas y archivos a ignorar
+IGNORAR = {"migrations", "staticfiles", ".git", ".gitignore", "__pycache__", "venv", "node_modules"}
+EXPORT_DIR = "__export__"
+
+# === FUNCIONES ===
+
+def recorrer_archivos(base, extension):
+    """Devuelve rutas de archivos con una extensión específica, ignorando carpetas filtradas."""
+    for carpeta, subcarpetas, archivos in os.walk(base):
+        subcarpetas[:] = [c for c in subcarpetas if c not in IGNORAR]
+        for archivo in archivos:
+            if archivo.endswith(extension):
+                yield os.path.join(carpeta, archivo)
+
+
+def escribir_contenidos(base, extension, salida_nombre):
+    """Crea un .txt con el contenido de todos los archivos de una extensión."""
+    salida_dir = os.path.join(base, EXPORT_DIR)
+    os.makedirs(salida_dir, exist_ok=True)
+    salida = os.path.join(salida_dir, salida_nombre)
+
+    nombre_base = os.path.basename(base)
+    with open(salida, "w", encoding="utf-8") as out:
+        for ruta in recorrer_archivos(base, extension):
+            ruta_relativa = os.path.relpath(ruta, base)
+            ruta_final = os.path.join(nombre_base, ruta_relativa).replace("\\", "/")
+            out.write(f"------{ruta_final}------\n")
+            try:
+                with open(ruta, "r", encoding="utf-8") as f:
+                    out.write(f.read())
+            except Exception as e:
+                out.write(f"[Error leyendo {ruta_relativa}: {e}]")
+            out.write("\n\n")
+    print(f"✅ {salida_nombre} creado en {EXPORT_DIR}/")
+
+
+def dibujar_arbol(ruta_base, prefijo="", archivo=None):
+    """Escribe la estructura de carpetas en formato árbol."""
+    try:
+        items = sorted(os.listdir(ruta_base))
+    except PermissionError:
+        return
+    items = [i for i in items if i not in IGNORAR and i != EXPORT_DIR]
+    total = len(items)
+    for i, item in enumerate(items):
+        ruta = os.path.join(ruta_base, item)
+        es_ultimo = (i == total - 1)
+        conector = "└── " if es_ultimo else "├── "
+        archivo.write(prefijo + conector + item + "\n")
+        if os.path.isdir(ruta):
+            nuevo_prefijo = prefijo + ("    " if es_ultimo else "│   ")
+            dibujar_arbol(ruta, nuevo_prefijo, archivo)
+
+
+def escribir_estructura(base):
+    """Genera el archivo estructura.txt"""
+    salida_dir = os.path.join(base, EXPORT_DIR)
+    os.makedirs(salida_dir, exist_ok=True)
+    salida = os.path.join(salida_dir, "estructura.txt")
+
+    nombre_base = os.path.basename(base)
+    with open(salida, "w", encoding="utf-8") as f:
+        f.write(f"{nombre_base}/\n")
+        dibujar_arbol(base, archivo=f)
+    print(f"✅ estructura.txt creado en {EXPORT_DIR}/")
+
+
+# === EJECUCIÓN ===
+
+if __name__ == "__main__":
+    base = os.path.dirname(os.path.abspath(__file__))
+
+    escribir_contenidos(base, ".py", "todo_py.txt")
+    escribir_contenidos(base, ".html", "todo_html.txt")
+    escribir_contenidos(base, ".js", "todo_js.txt")
+    escribir_contenidos(base, ".css", "todo_css.txt")
+    escribir_estructura(base)
+
+    print("\n🎉 Todos los archivos fueron generados en la carpeta '__export__'.")
+
+
+------market/chat/admin.py------
+from django.contrib import admin
+
+# Register your models here.
+
+
+------market/chat/apps.py------
+from django.apps import AppConfig
+
+
+class ChatConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'chat'
+
+
+------market/chat/models.py------
+from django.db import models
+
+# Create your models here.
+
+
+------market/chat/tests.py------
+from django.test import TestCase
+
+# Create your tests here.
+
+
+------market/chat/urls.py------
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.chat_view, name='chat'),
+    path('api/', views.chat_api, name='chat_api'),
+]
+
+------market/chat/views.py------
+import google.generativeai as genai
+import json
+import uuid
+import logging
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+
+# Configurar logging
+logger = logging.getLogger(__name__)
+
+# Configurar Gemini con el modelo CORRECTO
+def setup_gemini():
+    try:
+        if hasattr(settings, 'GEMINI_API_KEY') and settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            
+            # USAR EL MODELO CORRECTO de tu lista
+            model_name = 'models/gemini-2.0-flash-001'  # ← MODELO ESTABLE Y RÁPIDO
+            
+            try:
+                model = genai.GenerativeModel(model_name)
+                # Probar el modelo
+                test_response = model.generate_content("Hola")
+                if test_response.text:
+                    logger.info(f"✅ Gemini configurado con: {model_name}")
+                    return model
+            except Exception as e:
+                logger.error(f"❌ Error con {model_name}: {e}")
+                
+                # Fallback a otros modelos
+                fallback_models = [
+                    'models/gemini-2.5-flash',
+                    'models/gemini-flash-latest', 
+                    'models/gemini-pro-latest'
+                ]
+                
+                for fallback_model in fallback_models:
+                    try:
+                        model = genai.GenerativeModel(fallback_model)
+                        test_response = model.generate_content("Hola")
+                        if test_response.text:
+                            logger.info(f"✅ Gemini configurado con fallback: {fallback_model}")
+                            return model
+                    except:
+                        continue
+            
+            logger.error("❌ Ningún modelo de Gemini funcionó")
+            return None
+            
+        else:
+            logger.warning("⚠️  GEMINI_API_KEY no configurada")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ Error configurando Gemini: {e}")
+        return None
+
+# Configurar al iniciar
+gemini_model = setup_gemini()
+
+def chat_view(request):
+    session_id = request.session.get('chat_session_id')
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        request.session['chat_session_id'] = session_id
+    
+    return render(request, 'chat/chat.html', {
+        'session_id': session_id,
+        'gemini_available': gemini_model is not None
+    })
+
+@csrf_exempt
+def chat_api(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_message = data.get('message', '').strip()
+            session_id = data.get('session_id')
+            
+            logger.info(f"📨 Mensaje del usuario: {user_message}")
+            
+            if not user_message:
+                return JsonResponse({'response': '¡Hola! ¿En qué puedo ayudarte? 😊'})
+            
+            # USAR GEMINI CON EL MODELO CORRECTO
+            if gemini_model:
+                try:
+                    # Prompt optimizado para Masivo Tech
+                    prompt = f"""Eres Masibot, el asistente virtual oficial de Masivo Tech.
+
+INFORMACIÓN REAL:
+- Tienda: Masivo Tech - Periféricos gaming
+- Productos: teclados mecánicos, mouses gaming, auriculares, monitores, sillas gamer
+- Marcas: Logitech, Razer, Redragon, HyperX, SteelSeries
+- Envíos: CABA 24-48hs, Interior 3-5 días hábiles
+- Pagos: tarjetas (hasta 12 cuotas), transferencia (10% descuento), efectivo
+- Garantía: 6-12 meses oficial
+- Contacto: WhatsApp +54 11 1234-5678, info@masivotech.com
+- Horario: Lunes a Viernes 9-18hs
+
+RESPONDE:
+- En español argentino coloquial y amigable
+- Usa emojis relevantes 🎮🖱️⌨️🎧🚚💳
+- Sé entusiasta sobre gaming
+- Responde específicamente a la consulta
+- NO inventes precios exactos
+- NO inventes stocks exactos
+- Mantén respuestas breves (máximo 2 párrafos)
+
+Consulta: {user_message}
+
+Respuesta:"""
+                    
+                    response = gemini_model.generate_content(prompt)
+                    bot_response = response.text.strip()
+                    
+                    logger.info(f"🤖 Gemini 2.0 Flash respondió: {bot_response}")
+                    
+                    return JsonResponse({
+                        'response': bot_response,
+                        'session_id': session_id,
+                        'source': 'gemini_2.0_flash'
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error con Gemini: {e}")
+                    # Continuar con fallback
+            
+            # FALLBACK INTELIGENTE
+            return handle_fallback_response(user_message)
+                
+        except Exception as e:
+            logger.error(f"❌ Error general: {e}")
+            return JsonResponse({
+                'response': '¡Hola! 😊 Soy Masibot. ¿En qué puedo ayudarte? 🎮'
+            })
+    
+    return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+def handle_fallback_response(user_message):
+    """Sistema de respuestas predefinidas"""
+    user_lower = user_message.lower()
+    
+    responses = {
+        'hola': "¡Hola! 😊 Soy Masibot de Masivo Tech. ¿Buscás algún periférico gaming? 🎮",
+        'mouse': "🖱️ Tenemos mouses gaming Logitech, Razer, Redragon. ¿Inalámbricos o con cable?",
+        'teclado': "🎹 Teclados mecánicos con switches azul, rojo o marrón. Marcas: Redragon, Logitech, Razer",
+        'auricular': "🎧 Auriculares gaming con sonido surround 7.1. HyperX, Logitech, Razer",
+        'monitor': "🖥️ Monitores gaming 144Hz, 240Hz. Samsung, LG, ASUS. ¿Qué tamaño?",
+        'silla': "💺 Sillas gamer ergonómicas con soporte lumbar ajustable",
+        'logitech': "🎮 Logitech G! Pro X Superlight, G502 Hero, G203 Lightsync. ¿Cuál modelo?",
+        'razer': "🐍 Razer! DeathAdder, Viper, BlackWidow. Calidad premium",
+        'redragon': "🐲 Redragon! Kumara, Griffin, Lamia. Excelente calidad-precio",
+        'envío': "🚚 ¡Envíos a todo el país! CABA: 24-48hs | Interior: 3-5 días | Gratis +$50.000",
+        'envios': "🚚 ¡Envíos a todo el país! CABA: 24-48hs | Interior: 3-5 días | Gratis +$50.000",
+        'pago': "💳 Tarjetas (12 cuotas SIN interés), transferencia (10% OFF), efectivo",
+        'cuota': "💰 ¡12 cuotas SIN interés! Transferencia con 10% de descuento",
+        'garantía': "✅ Garantía oficial 6-12 meses. Distribuidores autorizados",
+        'garantia': "✅ Garantía oficial 6-12 meses. Distribuidores autorizados",
+        'stock': "📦 Todos los productos publicados están disponibles. Stock en tiempo real!",
+        'contacto': "📞 WhatsApp: +54 11 1234-5678 | Email: info@masivotech.com | Lun-Vie 9-18hs",
+        'whatsapp': "💬 WhatsApp: +54 11 1234-5678 - Respondemos al instante!",
+        'gracias': "¡De nada! 😊 ¿Necesitás algo más?",
+    }
+    
+    for keyword, answer in responses.items():
+        if keyword in user_lower:
+            return JsonResponse({'response': answer, 'source': 'fallback'})
+    
+    import random
+    contextual = [
+        f"😊 ¿Sobre '{user_message}'? ¡Contame más! ¿Qué te interesa? 🎮",
+        f"🎯 ¿'{user_message}'? Preguntame sobre productos gaming, envíos o garantías!",
+        f"🖥️ ¿Necesitás info sobre '{user_message}'? Soy experto en periféricos!",
+    ]
+    
+    return JsonResponse({
+        'response': random.choice(contextual),
+        'source': 'fallback_contextual'
+    })
+
+------market/chat/__init__.py------
+
+
+------market/marketplace/admin.py------
+from django.contrib import admin
+from django.utils.html import format_html
+from .models import Product, Order, OrderItem, ShippingOption, ShippingZone
+from django.urls import path
+from django.shortcuts import redirect
+from django.utils import timezone
+from datetime import timedelta
+
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ['image_preview', 'name', 'category_display', 'price', 'stock', 'available', 'created_at']
+    list_editable = ['price', 'stock', 'available']
+    list_filter = ['category', 'available', 'created_at']
+    search_fields = ['name', 'description']
+    list_per_page = 20
+    
+    fieldsets = [
+        ('Información Básica', {'fields': ['name', 'description', 'category', 'price']}),
+        ('Inventario e Imagen', {'fields': ['stock', 'available', 'image']}),
+    ]
+    
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
+    
+    def image_preview(self, obj):
+        if obj.image and obj.image.url:
+            return format_html('<img src="{}" style="width: 50px; height: 50px; object-fit: cover;" />', obj.image.url)
+        return "📷 Sin imagen"
+    image_preview.short_description = 'Imagen'
+    
+    def category_display(self, obj):
+        return dict(Product.CATEGORY_CHOICES).get(obj.category, obj.category)
+    category_display.short_description = 'Categoría'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).order_by('-created_at')
+    
+    def stock_status(self, obj):
+        if obj.stock == 0:
+            return format_html('<span style="color: red; font-weight: bold;">🔴 AGOTADO</span>')
+        elif obj.stock < 10:
+            return format_html('<span style="color: orange; font-weight: bold;">🟡 POCO STOCK ({})</span>', obj.stock)
+        else:
+            return format_html('<span style="color: green;">🟢 EN STOCK ({})</span>', obj.stock)
+    stock_status.short_description = 'Estado Stock'
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    readonly_fields = ['product', 'quantity', 'price']
+    extra = 0
+    can_delete = False
+
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ['id', 'first_name', 'last_name', 'email', 'total_display', 'status', 'created_at', 'order_actions']
+    list_filter = ['status', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'mercadopago_id']
+    readonly_fields = ['created_at', 'updated_at', 'mercadopago_id']
+    inlines = [OrderItemInline]
+    
+    fieldsets = [
+        ('Información del Cliente', {
+            'fields': [
+                'first_name', 'last_name', 'email', 'phone', 
+                'address', 'city'
+            ]
+        }),
+        ('Información de la Orden', {
+            'fields': [
+                'total', 'status', 'mercadopago_id', 'user'
+            ]
+        }),
+        ('Fechas', {
+            'fields': ['created_at', 'updated_at'],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def total_display(self, obj):
+        return f"${obj.total}"
+    total_display.short_description = 'Total'
+    
+    def order_actions(self, obj):
+        return format_html('''
+            <div class="order-actions">
+                <a href="/admin/marketplace/order/{}/change/" class="button">📝 Editar</a>
+            </div>
+        ''', obj.id)
+    order_actions.short_description = 'Acciones'
+
+@admin.register(ShippingOption)
+class ShippingOptionAdmin(admin.ModelAdmin):
+    list_display = ['name', 'price', 'estimated_days', 'is_active']
+    list_filter = ['is_active']
+    list_editable = ['price', 'estimated_days', 'is_active']
+
+@admin.register(ShippingZone)
+class ShippingZoneAdmin(admin.ModelAdmin):
+    list_display = ['name', 'postal_code_start', 'postal_code_end', 'shipping_option']
+    list_filter = ['shipping_option']
+
+# Registrar modelos
+admin.site.register(Product, ProductAdmin)
+admin.site.register(Order, OrderAdmin)
+# OrderItem no necesita registro porque se muestra inline en Order
+
+------market/marketplace/admin_dashboard.py------
+from django.contrib import admin
+from django.urls import path
+from django.shortcuts import render
+from django.db.models import Sum, Count, Avg
+from django.utils import timezone
+from datetime import timedelta
+import json
+from .models import Order, OrderItem, Product
+
+def admin_dashboard(request):
+    """Dashboard personalizado para el admin"""
+    
+    # Estadísticas principales
+    total_orders = Order.objects.count()
+    total_revenue = Order.objects.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    total_products = Product.objects.count()
+    low_stock_products = Product.objects.filter(stock__lt=10, stock__gt=0).count()
+    out_of_stock_products = Product.objects.filter(stock=0).count()
+    
+    # Ventas últimos 30 días
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    recent_orders = Order.objects.filter(created_at__gte=thirty_days_ago)
+    recent_revenue = recent_orders.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    
+    # Órdenes por estado
+    orders_by_status = Order.objects.values('status').annotate(
+        count=Count('id'),
+        revenue=Sum('total_amount')
+    )
+    
+    # Productos más vendidos
+    top_products = OrderItem.objects.values(
+        'product__name', 
+        'product__category'
+    ).annotate(
+        total_sold=Sum('quantity'),
+        revenue=Sum('price')
+    ).order_by('-total_sold')[:10]
+    
+    # Ventas por día (últimos 7 días)
+    sales_data = []
+    for i in range(7):
+        day = timezone.now() - timedelta(days=i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        day_sales = Order.objects.filter(
+            created_at__range=(day_start, day_end)
+        ).aggregate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        )
+        
+        sales_data.append({
+            'date': day.strftime('%Y-%m-%d'),
+            'day_name': day.strftime('%a'),
+            'total': day_sales['total'] or 0,
+            'count': day_sales['count'] or 0
+        })
+    
+    sales_data.reverse()
+    
+    context = {
+        'title': 'Dashboard MasivoTech',
+        'total_orders': total_orders,
+        'total_revenue': total_revenue,
+        'total_products': total_products,
+        'low_stock_products': low_stock_products,
+        'out_of_stock_products': out_of_stock_products,
+        'recent_revenue': recent_revenue,
+        'orders_by_status': list(orders_by_status),
+        'top_products': list(top_products),
+        'sales_data': sales_data,
+        'sales_json': json.dumps(sales_data),
+    }
+    
+    return render(request, 'admin/marketplace/dashboard.html', context)
+
+------market/marketplace/apps.py------
+from django.apps import AppConfig
+
+
+class MarketplaceConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'marketplace'
+
+
+------market/marketplace/cart.py------
+from decimal import Decimal
+from django.conf import settings
+from .models import Product
+
+class Cart:
+    def __init__(self, request):
+        self.session = request.session
+        cart = self.session.get(settings.CART_SESSION_ID)
+        if not cart:
+            cart = self.session[settings.CART_SESSION_ID] = {}
+        self.cart = cart
+
+    def add(self, product, quantity=1, update_quantity=False):
+        product_id = str(product.id)
+        
+        if product_id not in self.cart:
+            self.cart[product_id] = {
+                'quantity': 0,
+                'price': str(product.price)
+            }
+        
+        if update_quantity:
+            # Validar que no exceda el stock al actualizar
+            if quantity <= product.stock:
+                self.cart[product_id]['quantity'] = quantity
+            else:
+                self.cart[product_id]['quantity'] = product.stock
+        else:
+            # Validar que no exceda el stock al agregar
+            new_quantity = self.cart[product_id]['quantity'] + quantity
+            if new_quantity <= product.stock:
+                self.cart[product_id]['quantity'] = new_quantity
+            else:
+                self.cart[product_id]['quantity'] = product.stock
+        
+        self.save()
+
+    def save(self):
+        self.session[settings.CART_SESSION_ID] = self.cart
+        self.session.modified = True
+
+    def remove(self, product):
+        product_id = str(product.id)
+        if product_id in self.cart:
+            del self.cart[product_id]
+            self.save()
+
+    def __iter__(self):
+        product_ids = self.cart.keys()
+        products = Product.objects.filter(id__in=product_ids)
+        cart = self.cart.copy()
+        
+        for product in products:
+            cart[str(product.id)]['product'] = product
+
+        for item in cart.values():
+            item['price'] = Decimal(item['price'])
+            item['total_price'] = item['price'] * item['quantity']
+            yield item
+
+    def __len__(self):
+        return sum(item['quantity'] for item in self.cart.values())
+
+    def get_total_price(self):
+        return sum(Decimal(item['price']) * item['quantity'] for item in self.cart.values())
+
+    def clear(self):
+        del self.session[settings.CART_SESSION_ID]
+        self.session.modified = True
+
+    def get_available_quantity(self, product):
+        """Obtener la cantidad máxima que se puede agregar considerando el stock"""
+        product_id = str(product.id)
+        current_quantity = self.cart.get(product_id, {}).get('quantity', 0)
+        return max(0, product.stock - current_quantity)
+
+------market/marketplace/context_processors.py------
+from .cart import Cart
+
+def cart_context(request):
+    cart = Cart(request)
+    return {
+        'cart': cart,
+        'cart_total_items': len(cart),
+        'cart_total_price': cart.get_total_price(),
+    }
+
+------market/marketplace/forms.py------
+from django import forms
+from .models import Order
+
+class OrderForm(forms.ModelForm):
+    class Meta:
+        model = Order
+        fields = ['first_name', 'last_name', 'email', 'address', 'city', 'phone']
+        widgets = {
+            'first_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Tu nombre'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Tu apellido'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'email@ejemplo.com'}),
+            'address': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Dirección completa'}),
+            'city': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ciudad'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Teléfono'}),
+        }
+
+class ContactForm(forms.Form):
+    nombre = forms.CharField(max_length=100, widget=forms.TextInput(attrs={
+        'class': 'form-control', 'placeholder': 'Tu nombre completo'
+    }))
+    email = forms.EmailField(widget=forms.EmailInput(attrs={
+        'class': 'form-control', 'placeholder': 'tu@email.com'
+    }))
+    asunto = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={
+        'class': 'form-control', 'placeholder': 'Asunto del mensaje'
+    }))
+    mensaje = forms.CharField(widget=forms.Textarea(attrs={
+        'class': 'form-control', 'placeholder': 'Tu mensaje...', 'rows': 5
+    }))
+
+------market/marketplace/models.py------
+# === models.py - Modelos Django Optimizados ===
+
+from django.db import models
+from django.core.validators import MinValueValidator
+from django.conf import settings
+from django.contrib.auth import get_user_model
+
+# COMENTA TEMPORALMENTE CLOUDINARY PARA MIGRACIONES
+# # from cloudinary.models import CloudinaryField
+# # from cloudinary_storage.storage import MediaCloudinaryStorage
+
+# Obtener el modelo de usuario de forma compatible
+User = get_user_model()
+
+
+class Product(models.Model):
+    """
+    Modelo para productos de la tienda gaming
+    Gestiona teclados, mouses, auriculares y monitores
+    """
+    
+    # Opciones de categoría
+    CATEGORY_CHOICES = [
+        ('teclados', 'Teclados Mecánicos'),
+        ('mouses', 'Mouses Gaming'),
+        ('auriculares', 'Auriculares'),
+        ('monitores', 'Monitores Gaming'),
+    ]
+    
+    # Campos principales
+    name = models.CharField(
+        max_length=200,
+        verbose_name="Nombre del Producto",
+        help_text="Nombre descriptivo del producto"
+    )
+    
+    description = models.TextField(
+        verbose_name="Descripción",
+        help_text="Descripción detallada del producto"
+    )
+    
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        verbose_name="Precio",
+        help_text="Precio en pesos argentinos"
+    )
+    
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        verbose_name="Categoría",
+        help_text="Categoría del producto"
+    )
+    
+    # IMAGEN LOCAL TEMPORAL - USA ImageField normal
+    image = models.ImageField(
+        upload_to='products/',
+        verbose_name="Imagen",
+        help_text="Imagen principal del producto",
+        blank=True,
+        null=True
+    )
+    # COMENTA TODAS LAS OPCIONES DE CLOUDINARY:
+    # image = CloudinaryField(
+    # 'image',
+    # folder='products/',
+    # blank=True,
+    # null=True
+    # )
+    # image = models.ImageField(
+    # upload_to='products/',
+    # # storage=MediaCloudinaryStorage(),
+    # blank=True,
+    # null=True
+    # )
+
+    # Gestión de inventario
+    stock = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Stock Disponible",
+        help_text="Cantidad disponible en inventario"
+    )
+    
+    available = models.BooleanField(
+        default=True,
+        verbose_name="Disponible",
+        help_text="¿El producto está disponible para la venta?"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Producto"
+        verbose_name_plural = "Productos"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['category', 'available']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['price']),
+        ]
+    
+    def __str__(self):
+        """Representación legible del producto"""
+        return f"{self.name} - ${self.price}"
+    
+    def get_price_in_pesos(self):
+        """Formatea el precio en formato pesos argentinos"""
+        return f"${self.price:,.2f}".replace(',', '.')
+    
+    def is_in_stock(self):
+        """Verifica si el producto está en stock"""
+        return self.stock > 0 and self.available
+    
+    def get_stock_status(self):
+        """Devuelve el estado del stock como texto"""
+        if self.stock == 0:
+            return "agotado"
+        elif self.stock < 5:
+            return "poco_stock"
+        else:
+            return "en_stock"
+
+
+class Order(models.Model):
+    """
+    Modelo para órdenes de compra
+    Gestiona todo el proceso de pedidos
+    """
+    
+    # Estados de la orden
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('paid', 'Pagado'),
+        ('processing', 'Procesando'),
+        ('shipped', 'Enviado'),
+        ('delivered', 'Entregado'),
+        ('cancelled', 'Cancelado'),
+    ]
+    
+    # Relación con usuario (opcional para compras como invitado)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Usuario",
+        related_name="orders"
+    )
+    
+    # Información del cliente
+    first_name = models.CharField(max_length=100, verbose_name="Nombre")
+    last_name = models.CharField(max_length=100, verbose_name="Apellido")
+    email = models.EmailField(verbose_name="Email")
+    address = models.CharField(max_length=255, verbose_name="Dirección")
+    city = models.CharField(max_length=100, verbose_name="Ciudad")
+    phone = models.CharField(max_length=20, verbose_name="Teléfono")
+    
+    # Información de la orden
+    total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Total",
+        help_text="Total de la orden en pesos"
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Estado",
+        help_text="Estado actual de la orden"
+    )
+    
+    mercadopago_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="ID de MercadoPago",
+        help_text="ID de la transacción en MercadoPago"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Orden"
+        verbose_name_plural = "Órdenes"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['email']),
+        ]
+    
+    def __str__(self):
+        """Representación legible de la orden"""
+        return f"Orden #{self.id} - {self.first_name} {self.last_name}"
+    
+    def get_full_name(self):
+        """Nombre completo del cliente"""
+        return f"{self.first_name} {self.last_name}"
+    
+    def can_be_cancelled(self):
+        """Verifica si la orden puede ser cancelada"""
+        return self.status in ['pending', 'paid']
+
+
+class OrderItem(models.Model):
+    """
+    Modelo para items individuales dentro de una orden
+    Relaciona productos con órdenes
+    """
+    
+    order = models.ForeignKey(
+        Order,
+        related_name='items',
+        on_delete=models.CASCADE,
+        verbose_name="Orden"
+    )
+    
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        verbose_name="Producto"
+    )
+    
+    quantity = models.PositiveIntegerField(
+        verbose_name="Cantidad",
+        help_text="Cantidad del producto en la orden"
+    )
+    
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Precio Unitario",
+        help_text="Precio en el momento de la compra"
+    )
+    
+    class Meta:
+        verbose_name = "Item de Orden"
+        verbose_name_plural = "Items de Orden"
+        unique_together = ['order', 'product']
+    
+    def __str__(self):
+        """Representación legible del item"""
+        return f"{self.quantity} x {self.product.name}"
+    
+    def get_total_price(self):
+        """Calcula el precio total del item"""
+        return self.quantity * self.price
+
+
+class ShippingOption(models.Model):
+    """
+    Modelo para opciones de envío
+    Configura diferentes métodos de envío disponibles
+    """
+    
+    name = models.CharField(
+        max_length=100,
+        verbose_name="Nombre del Envío",
+        help_text="Nombre descriptivo de la opción de envío"
+    )
+    
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Precio",
+        help_text="Costo del envío en pesos"
+    )
+    
+    estimated_days = models.CharField(
+        max_length=50,
+        verbose_name="Días Estimados",
+        help_text="Tiempo estimado de entrega"
+    )
+    
+    description = models.TextField(
+        blank=True,
+        verbose_name="Descripción",
+        help_text="Descripción detallada del envío"
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="¿Esta opción de envío está disponible?"
+    )
+    
+    class Meta:
+        verbose_name = "Opción de Envío"
+        verbose_name_plural = "Opciones de Envío"
+        ordering = ['price']
+    
+    def __str__(self):
+        """Representación legible de la opción de envío"""
+        return f"{self.name} - ${self.price}"
+
+
+class ShippingZone(models.Model):
+    """
+    Modelo para zonas de envío
+    Define zonas geográficas y sus opciones de envío
+    """
+    
+    name = models.CharField(
+        max_length=100,
+        verbose_name="Zona",
+        help_text="Nombre de la zona geográfica"
+    )
+    
+    postal_code_start = models.CharField(
+        max_length=10,
+        verbose_name="Código Postal Inicio",
+        help_text="Inicio del rango de códigos postales"
+    )
+    
+    postal_code_end = models.CharField(
+        max_length=10,
+        verbose_name="Código Postal Fin",
+        help_text="Fin del rango de códigos postales"
+    )
+    
+    shipping_option = models.ForeignKey(
+        ShippingOption,
+        on_delete=models.CASCADE,
+        verbose_name="Opción de Envío"
+    )
+    
+    class Meta:
+        verbose_name = "Zona de Envío"
+        verbose_name_plural = "Zonas de Envío"
+        ordering = ['name']
+    
+    def __str__(self):
+        """Representación legible de la zona de envío"""
+        return f"{self.name} ({self.postal_code_start}-{self.postal_code_end})"
+
+------market/marketplace/tests.py------
+from django.test import TestCase
+
+# Create your tests here.
+
+
+------market/marketplace/urls.py------
+from django.urls import path
+from . import views
+from .views import cart_panel_api
+
+urlpatterns = [
+    # Páginas principales
+    path('', views.index, name='index'),
+    path('productos/', views.product_list, name='product_list'),
+    path('producto/<int:product_id>/', views.product_detail, name='product_detail'),
+    path('ofertas/', views.ofertas, name='ofertas'),
+    path('contacto/', views.contacto, name='contacto'),
+    path('envios/', views.envios_info, name='envios_info'),    
+    # Carrito
+    path('carrito/', views.cart_detail, name='cart_detail'),
+    path('carrito/agregar/<int:product_id>/', views.add_to_cart, name='add_to_cart'),
+    path('carrito/remover/<int:product_id>/', views.remove_from_cart, name='remove_from_cart'),
+    path('carrito/actualizar/<int:product_id>/', views.update_cart, name='update_cart'),
+    path('carrito/vaciar/', views.clear_cart, name='clear_cart'),
+    path('carrito/calcular-envio/', views.calculate_shipping, name='calculate_shipping'),
+    path('carrito/api/panel/', cart_panel_api, name='cart_panel_api'),
+
+    # Mercado Pago
+    path('payment/create/', views.create_mercadopago_payment, name='create_payment'),
+    path('payment/success/', views.payment_success, name='payment_success'),
+    path('payment/failure/', views.payment_failure, name='payment_failure'),
+    path('payment/pending/', views.payment_pending, name='payment_pending'),
+    path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
+    
+    # API y Utilidades
+    path('buscar/autocomplete/', views.search_autocomplete, name='search_autocomplete'),
+    path('mis-pedidos/', views.order_history, name='order_history'),
+]
+
+------market/marketplace/views.py------
+# === marketplace/views.py - VERSIÓN CORREGIDA Y OPTIMIZADA ===
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.http import JsonResponse
+from django.db.models import Q
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from decimal import Decimal
+import mercadopago
+import json
+from django.conf import settings
+
+from .models import Product, Order, OrderItem
+from .forms import OrderForm, ContactForm
+from .cart import Cart
+
+# =============================================================================
+# VISTAS PRINCIPALES
+# =============================================================================
+
+def index(request):
+    """Vista principal de la página de inicio"""
+    featured_products = Product.objects.filter(available=True).order_by('-created_at')[:8]
+    
+    context = {
+        'products': featured_products,
+        'categories': Product.CATEGORY_CHOICES,
+        'page_title': 'Masivo Tech - Periféricos Gaming 🎮'
+    }
+    
+    return render(request, 'marketplace/index.html', context)
+
+def product_list(request):
+    """Vista para listar productos con filtros"""
+    category = request.GET.get('category', '')
+    search_query = request.GET.get('q', '')
+    sort_by = request.GET.get('sort', 'name')
+    
+    products = Product.objects.filter(available=True)
+    
+    # Filtros
+    if category:
+        products = products.filter(category=category)
+    
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Ordenamiento
+    sorting_options = {
+        'name': 'name',
+        'price_low': 'price',
+        'price_high': '-price', 
+        'newest': '-created_at'
+    }
+    
+    order_field = sorting_options.get(sort_by, 'name')
+    products = products.order_by(order_field)
+    
+    context = {
+        'products': products,
+        'categories': Product.CATEGORY_CHOICES,
+        'selected_category': category,
+        'search_query': search_query,
+        'sort_by': sort_by,
+        'page_title': 'Productos - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/product_list.html', context)
+
+def product_detail(request, product_id):
+    """Vista para detalle de producto"""
+    product = get_object_or_404(Product, id=product_id, available=True)
+    
+    if request.method == 'POST':
+        return handle_add_to_cart(request, product)
+    
+    context = {
+        'product': product,
+        'page_title': f'{product.name} - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/product_detail.html', context)
+
+def handle_add_to_cart(request, product):
+    """Maneja la lógica de agregar al carrito"""
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+        cart = Cart(request)
+        
+        # Validar stock
+        cart_quantity = cart.cart.get(str(product.id), {}).get('quantity', 0)
+        total_quantity = cart_quantity + quantity
+        
+        if total_quantity > product.stock:
+            messages.error(request, f'No hay suficiente stock. Disponible: {product.stock} unidades.')
+            return redirect('product_detail', product_id=product.id)
+        
+        cart.add(product, quantity)
+        messages.success(request, f'¡{quantity} x {product.name} agregado al carrito! 🎮')
+        
+    except ValueError:
+        messages.error(request, 'Cantidad no válida')
+    except Exception as e:
+        messages.error(request, 'Error al agregar al carrito')
+    
+    return redirect('product_detail', product_id=product.id)
+
+def ofertas(request):
+    """Vista para ofertas especiales"""
+    productos_oferta = Product.objects.filter(available=True).order_by('-created_at')[:8]
+    
+    context = {
+        'productos_oferta': productos_oferta,
+        'page_title': 'Ofertas Especiales - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/ofertas.html', context)
+
+def contacto(request):
+    """Vista para página de contacto"""
+    if request.method == 'POST':
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            messages.success(request, '¡Mensaje enviado correctamente! Te contactaremos pronto. 📧')
+            return redirect('contacto')
+    else:
+        form = ContactForm()
+    
+    context = {
+        'form': form,
+        'page_title': 'Contacto - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/contacto.html', context)
+
+def envios_info(request):
+    """Vista para información de envíos"""
+    shipping_zones = [
+        {'zona': 'CABA', 'precio': '$1.500', 'tiempo': '24-48 horas'},
+        {'zona': 'GBA', 'precio': '$2.000', 'tiempo': '48-72 horas'},
+        {'zona': 'Interior', 'precio': '$3.500', 'tiempo': '5-7 días'},
+    ]
+    
+    context = {
+        'shipping_zones': shipping_zones,
+        'page_title': 'Información de Envíos - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/envios_info.html', context)
+
+# =============================================================================
+# VISTAS DEL CARRITO (CORREGIDAS)
+# =============================================================================
+
+def cart_detail(request):
+    """Vista principal del carrito"""
+    cart = Cart(request)
+    
+    # Verificar stock
+    cart_has_exceeded_stock = False
+    for item in cart:
+        if item['quantity'] > item['product'].stock:
+            cart_has_exceeded_stock = True
+            break
+    
+    shipping_price = request.session.get('shipping_price', 0)
+    postal_code = request.session.get('postal_code', '')
+    total_with_shipping = cart.get_total_price() + Decimal(str(shipping_price))
+    
+    context = {
+        'cart': cart,
+        'cart_has_exceeded_stock': cart_has_exceeded_stock,
+        'shipping_price': shipping_price,
+        'postal_code': postal_code,
+        'total_with_shipping': total_with_shipping,
+        'page_title': 'Carrito de Compras - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/cart.html', context)
+
+def cart_panel_api(request):
+    """API para panel lateral del carrito"""
+    cart = Cart(request)
+    
+    context = {
+        'cart': cart,
+        'cart_total_items': len(cart),
+        'cart_total_price': cart.get_total_price(),
+    }
+    
+    return render(request, 'marketplace/cart_panel_content.html', context)
+
+def add_to_cart(request, product_id):
+    """Agregar producto al carrito"""
+    cart = Cart(request)
+    product = get_object_or_404(Product, id=product_id)
+    
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+        
+        # Validar stock
+        cart_quantity = cart.cart.get(str(product_id), {}).get('quantity', 0)
+        total_quantity = cart_quantity + quantity
+        
+        if total_quantity > product.stock:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Stock insuficiente. Disponible: {product.stock}'
+                })
+            messages.error(request, f'Stock insuficiente. Disponible: {product.stock}')
+            return redirect('product_detail', product_id=product_id)
+        
+        cart.add(product, quantity)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': f'"{product.name}" agregado al carrito.',
+                'cart_total_items': len(cart),
+                'cart_total_price': str(cart.get_total_price())
+            })
+        
+        messages.success(request, f'"{product.name}" agregado al carrito.')
+        
+    except ValueError:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'message': 'Cantidad no válida'})
+        messages.error(request, 'Cantidad no válida')
+    
+    return redirect('product_detail', product_id=product_id)
+
+def remove_from_cart(request, product_id):
+    """Remover producto del carrito"""
+    cart = Cart(request)
+    product = get_object_or_404(Product, id=product_id)
+    
+    cart.remove(product)
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': True,
+            'cart_total_items': len(cart),
+            'cart_total_price': str(cart.get_total_price()),
+            'message': 'Producto eliminado del carrito'
+        })
+    
+    messages.success(request, f'"{product.name}" removido del carrito.')
+    return redirect('cart_detail')
+
+def update_cart(request, product_id):
+    """Actualizar cantidad en carrito"""
+    cart = Cart(request)
+    product = get_object_or_404(Product, id=product_id)
+    
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+        
+        # Validar stock
+        if quantity > product.stock:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Stock máximo: {product.stock} unidades'
+                })
+            messages.error(request, f'Stock máximo: {product.stock} unidades')
+            return redirect('cart_detail')
+        
+        cart.add(product, quantity, update_quantity=True)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'cart_total_items': len(cart),
+                'cart_total_price': str(cart.get_total_price()),
+                'message': 'Carrito actualizado'
+            })
+        
+        messages.success(request, f'"{product.name}" actualizado a {quantity} unidades.')
+        
+    except ValueError:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'message': 'Cantidad no válida'})
+        messages.error(request, 'Cantidad no válida')
+    
+    return redirect('cart_detail')
+
+def clear_cart(request):
+    """Vaciar carrito completo"""
+    cart = Cart(request)
+    cart.clear()
+    messages.success(request, 'Carrito vaciado correctamente.')
+    return redirect('cart_detail')
+
+def calculate_shipping(request):
+    """Calcular costo de envío"""
+    if request.method == 'POST':
+        postal_code = request.POST.get('postal_code', '')
+        
+        shipping_price = 0
+        if postal_code:
+            if postal_code.startswith(('1', '2')):  # CABA
+                shipping_price = 1500
+            elif postal_code.startswith(('16', '17')):  # GBA
+                shipping_price = 2000
+            else:  # Interior
+                shipping_price = 3500
+        
+        request.session['shipping_price'] = float(shipping_price)
+        request.session['postal_code'] = postal_code
+    
+    return redirect('cart_detail')
+
+# =============================================================================
+# MERCADO PAGO
+# =============================================================================
+@require_http_methods(["POST"])
+@csrf_exempt
+def create_mercadopago_payment(request):
+    """Crear preferencia de pago en MercadoPago - VERSIÓN CON DEBUG COMPLETO"""
+    try:
+        print("=" * 50)
+        print("🔄 INICIANDO CREACIÓN DE PAGO MERCADOPAGO")
+        print("=" * 50)
+        
+        # 1. Verificar SDK
+        try:
+            import mercadopago
+            print("✅ Paquete mercadopago disponible")
+        except ImportError as e:
+            error_msg = f"❌ mercadopago no instalado: {e}"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=500)
+        
+        # 2. Verificar credenciales
+        if not hasattr(settings, 'MERCADOPAGO_ACCESS_TOKEN'):
+            error_msg = "❌ MERCADOPAGO_ACCESS_TOKEN no existe en settings"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=500)
+        
+        if not settings.MERCADOPAGO_ACCESS_TOKEN:
+            error_msg = "❌ MERCADOPAGO_ACCESS_TOKEN está vacío"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=500)
+        
+        print(f"✅ Credenciales configuradas: {settings.MERCADOPAGO_ACCESS_TOKEN[:20]}...")
+        
+        # 3. Inicializar SDK
+        try:
+            sdk = mercadopago.SDK(settings.MERCADOPAGO_ACCESS_TOKEN)
+            print("✅ SDK de MercadoPago inicializado")
+        except Exception as e:
+            error_msg = f"❌ Error inicializando SDK: {e}"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=500)
+        
+        # 4. Verificar carrito
+        cart = Cart(request)
+        print(f"🛒 Carrito tiene {len(cart)} items")
+        
+        if len(cart) == 0:
+            error_msg = "❌ El carrito está vacío"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=400)
+        
+        # 5. Construir items con validación
+        items = []
+        total_carrito = 0
+        
+        print("📦 Construyendo items del carrito:")
+        for i, item in enumerate(cart, 1):
+            try:
+                product_name = item['product'].name[:250]  # Limitar longitud
+                unit_price = float(item['price'])
+                quantity = item['quantity']
+                item_total = unit_price * quantity
+                total_carrito += item_total
+                
+                item_data = {
+                    "title": product_name,
+                    "unit_price": unit_price,
+                    "quantity": quantity,
+                    "currency_id": "ARS"
+                }
+                items.append(item_data)
+                
+                print(f"   {i}. {product_name} - ${unit_price} x {quantity} = ${item_total}")
+                
+            except Exception as e:
+                error_msg = f"❌ Error procesando item {i}: {e}"
+                print(error_msg)
+                return JsonResponse({'error': error_msg}, status=500)
+        
+        print(f"💰 Total carrito: ${total_carrito}")
+        
+        # 6. Agregar envío si existe
+        shipping_price = request.session.get('shipping_price', 0)
+        postal_code = request.session.get('postal_code', '')
+        
+        if shipping_price > 0:
+            try:
+                shipping_item = {
+                    "title": f"Envío a {postal_code}"[:250],
+                    "unit_price": float(shipping_price),
+                    "quantity": 1,
+                    "currency_id": "ARS"
+                }
+                items.append(shipping_item)
+                print(f"🚚 Envío agregado: ${shipping_price} para {postal_code}")
+            except Exception as e:
+                error_msg = f"❌ Error agregando envío: {e}"
+                print(error_msg)
+                return JsonResponse({'error': error_msg}, status=500)
+        
+        # 7. Crear preferencia de pago
+        preference_data = {
+            "items": items,
+            "back_urls": {
+                "success": "http://127.0.0.1:8000/payment/success/",
+                "failure": "http://127.0.0.1:8000/payment/failure/", 
+                "pending": "http://127.0.0.1:8000/payment/pending/"
+            },
+            # "auto_return": "approved",  # ← REMOVER ESTA LÍNEA
+            "external_reference": f"masivotech_{int(timezone.now().timestamp())}",
+        }
+        
+        print("📤 Enviando datos a MercadoPago...")
+        print(f"📊 Datos enviados: {preference_data}")
+        
+        try:
+            preference_response = sdk.preference().create(preference_data)
+            print(f"📥 Respuesta de MP recibida: {preference_response}")
+        except Exception as e:
+            error_msg = f"❌ Error en la petición a MercadoPago: {e}"
+            print(error_msg)
+            return JsonResponse({'error': error_msg}, status=500)
+        
+        # 8. Procesar respuesta
+        if preference_response["status"] in [200, 201]:
+            preference = preference_response["response"]
+            init_point = preference.get('init_point') or preference.get('sandbox_init_point')
+            
+            if not init_point:
+                error_msg = "❌ MercadoPago no devolvió URL de pago válida"
+                print(error_msg)
+                print(f"📋 Respuesta completa: {preference}")
+                return JsonResponse({'error': error_msg}, status=500)
+            
+            print(f"✅ Pago creado exitosamente - ID: {preference['id']}")
+            print(f"🔗 URL de pago: {init_point}")
+            
+            return JsonResponse({
+                'id': preference['id'],
+                'init_point': init_point,
+                'message': 'Pago creado exitosamente'
+            })
+        else:
+            error_msg = f"❌ Error de MercadoPago - Status: {preference_response['status']}"
+            print(error_msg)
+            print(f"📋 Respuesta completa: {preference_response}")
+            return JsonResponse({'error': error_msg}, status=500)
+            
+    except Exception as e:
+        error_msg = f"💥 ERROR NO MANEJADO: {str(e)}"
+        print(error_msg)
+        import traceback
+        print(f"📝 Traceback completo: {traceback.format_exc()}")
+        return JsonResponse({'error': error_msg}, status=500)
+
+
+def payment_success(request):
+    """Pago exitoso"""
+    cart = Cart(request)
+    cart.clear()
+    clear_shipping_session(request)
+    
+    context = {
+        'payment_id': request.GET.get('payment_id'),
+        'status': request.GET.get('status'),
+        'page_title': 'Pago Exitoso - Masivo Tech'
+    }
+    
+    return render(request, 'marketplace/payment_success.html', context)
+
+def payment_failure(request):
+    """Pago fallido"""
+    context = {
+        'payment_id': request.GET.get('payment_id'),
+        'status': request.GET.get('status'),
+        'page_title': 'Pago Fallido - Masivo Tech'
+    }
+    
+    messages.error(request, 'El pago no pudo ser procesado.')
+    return render(request, 'marketplace/payment_failure.html', context)
+
+def payment_pending(request):
+    """Pago pendiente"""
+    context = {
+        'payment_id': request.GET.get('payment_id'),
+        'status': request.GET.get('status'),
+        'page_title': 'Pago Pendiente - Masivo Tech'
+    }
+    
+    messages.info(request, 'Tu pago está siendo procesado.')
+    return render(request, 'marketplace/payment_pending.html', context)
+
+@csrf_exempt
+def payment_webhook(request):
+    """Webhook para notificaciones de MercadoPago"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            print(f"📦 Webhook recibido: {data}")
+            return JsonResponse({'status': 'ok'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+# =============================================================================
+# UTILIDADES
+# =============================================================================
+
+def get_base_url(request):
+    """Obtener URL base"""
+    if hasattr(settings, 'BASE_URL'):
+        return settings.BASE_URL.rstrip('/')
+    return 'http://127.0.0.1:8000'
+
+def clear_shipping_session(request):
+    """Limpiar datos de envío de la sesión"""
+    for key in ['shipping_price', 'postal_code']:
+        if key in request.session:
+            del request.session[key]
+
+def search_autocomplete(request):
+    """Autocompletado de búsqueda"""
+    query = request.GET.get('q', '')
+    
+    if len(query) < 2:
+        return JsonResponse({'results': []})
+    
+    products = Product.objects.filter(
+        Q(name__icontains=query) | 
+        Q(category__icontains=query),
+        available=True
+    )[:5]
+    
+    results = []
+    for product in products:
+        results.append({
+            'name': product.name,
+            'category': product.get_category_display(),
+            'price': str(product.price),
+            'url': f"/producto/{product.id}/",
+            'image': product.image.url if product.image else None
+        })
+    
+    return JsonResponse({'results': results})
+
+@login_required
+def order_history(request):
+    """Historial de pedidos del usuario"""
+    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    
+    context = {
+        'orders': orders,
+        'page_title': 'Mis Pedidos - Masivo Tech'
+    }
+    
+    return render(request, 'users/order_history.html', context)
+
+------market/marketplace/__init__.py------
+
+
+------market/masivo_tech/asgi.py------
+"""
+ASGI config for masivo_tech project.
+
+It exposes the ASGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/4.2/howto/deployment/asgi/
+"""
+
+import os
+
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+
+application = get_asgi_application()
+
+
+------market/masivo_tech/settings.py------
+# === settings.py - Configuración Django Optimizada ===
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+import dj_database_url # -> RENDER
+
+# Cargar variables de entorno - DETECCIÓN MEJORADA
+if os.path.exists('.env.local'):
+    load_dotenv('.env.local')  # Desarrollo local
+    ENVIRONMENT = 'development'
+    print("🔄 Entorno: DESARROLLO")
+else:
+    load_dotenv()  # Producción por defecto
+    ENVIRONMENT = 'production'
+    print("🚀 Entorno: PRODUCCIÓN")
+
+# =============================================================================
+# CONFIGURACIÓN CLOUDINARY 
+# =============================================================================
+
+# Verificar si Cloudinary está configurado
+CLOUDINARY_CONFIGURED = all([
+    os.getenv('CLOUDINARY_CLOUD_NAME'),
+    os.getenv('CLOUDINARY_API_KEY'), 
+    os.getenv('CLOUDINARY_API_SECRET')
+])
+
+if CLOUDINARY_CONFIGURED:
+    # CLOUDINARY CONFIGURADO - cargar e inicializar
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    from cloudinary_storage.storage import MediaCloudinaryStorage
+    
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+        'PREFIX': 'masivo_tech/'  # ← Organización en carpetas
+    }
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    print("☁️  Cloudinary configurado")
+else:
+    # CLOUDINARY NO CONFIGURADO - archivos locales
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    print("Usando archivos locales para desarrollo")
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# =============================================================================
+# CONFIGURACIÓN DE SEGURIDAD - MEJORADA CON DETECCIÓN AUTOMÁTICA
+# =============================================================================
+
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-temporal-para-desarrollo')
+
+# Configuración automática por entorno
+if ENVIRONMENT == 'development':
+    DEBUG = True
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.1.*']
+else:
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'masivotech.onrender.com,localhost,127.0.0.1').split(',')
+
+# =============================================================================
+# CONFIGURACIÓN DE LA APLICACIÓN
+# =============================================================================
+
+INSTALLED_APPS = [
+    # Apps de Django
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'django.contrib.sites',
+
+    #Cloudinary - SOLO SI ESTÁ CONFIGURADO
+]
+
+# Agregar Cloudinary solo si está configurado
+if CLOUDINARY_CONFIGURED:
+    INSTALLED_APPS += [
+        'cloudinary',
+        'cloudinary_storage',
+    ]
+
+INSTALLED_APPS += [
+    # Apps de terceros
+    'crispy_forms',
+    'crispy_bootstrap5',
+    'corsheaders',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'django_extensions',
+    
+    # Apps locales
+    'marketplace',
+    'users',
+    'chat',
+]
+
+# Debug Toolbar solo en desarrollo
+if ENVIRONMENT == 'development':
+    INSTALLED_APPS += ['debug_toolbar']
+
+MIDDLEWARE = [
+    # Middleware de CORS (primero)
+    'corsheaders.middleware.CorsMiddleware',
+    
+    # Middleware de seguridad
+    'django.middleware.security.SecurityMiddleware',
+    
+    # Whitenoise para archivos estáticos en producción -> RENDER
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
+    # Middleware de sesión
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    
+    # Middleware común
+    'django.middleware.common.CommonMiddleware',
+    
+    # Middleware CSRF
+    'django.middleware.csrf.CsrfViewMiddleware',
+    
+    # Middleware de autenticación
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    
+    # Middleware de mensajes
+    'django.contrib.messages.middleware.MessageMiddleware',
+    
+    # Middleware de clickjacking
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
+    # Middleware de Allauth
+    'allauth.account.middleware.AccountMiddleware',
+]
+
+# Debug Toolbar solo en desarrollo
+if ENVIRONMENT == 'development':
+    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+
+ROOT_URLCONF = 'masivo_tech.urls'
+
+WSGI_APPLICATION = 'masivo_tech.wsgi.application'
+
+# =============================================================================
+# CONFIGURACIÓN DE BASE DE DATOS - CONFIGURACIÓN ROBUSTA
+# =============================================================================
+
+# Configuración robusta que funciona en todos los escenarios
+try:
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if DATABASE_URL:
+        # PostgreSQL en producción
+        DATABASES = {
+            'default': dj_database_url.parse(DATABASE_URL)
+        }
+    else:
+        # SQLite en desarrollo
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+except Exception as e:
+    # Fallback absoluto a SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# =============================================================================
+# CONFIGURACIÓN DE AUTENTICACIÓN
+# =============================================================================
+
+# Backends de autenticación
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Modelo de usuario personalizado
+AUTH_USER_MODEL = 'users.CustomUser'
+
+# Configuración de Allauth
+SITE_ID = 1
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_LOGOUT_ON_GET = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_EMAIL_REQUIRED = False
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_STORE_TOKENS = True
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
+
+# Configuración de registro
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+
+# =============================================================================
+# CONFIGURACIÓN DE EMAIL (DESACTIVADO PARA RENDER)
+# =============================================================================
+
+# Evita que Django intente conectarse a un servidor SMTP real.
+# Los mails se imprimirán en la consola de Render en los logs.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "no-reply@masivotech.com"
+
+# =============================================================================
+# CONFIGURACIÓN DE INTERNATIONALIZATION
+# =============================================================================
+
+LANGUAGE_CODE = 'es-ar'
+TIME_ZONE = 'America/Argentina/Buenos_Aires'
+USE_I18N = True
+USE_TZ = True
+
+# =============================================================================
+# CONFIGURACIÓN DE ARCHIVOS ESTÁTICOS Y MEDIA
+# =============================================================================
+
+# Archivos estáticos
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+# --> RENDER <--
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Archivos media (configuración local como respaldo)
+if not CLOUDINARY_CONFIGURED:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+
+# =============================================================================
+# CONFIGURACIÓN DE TEMPLATES
+# =============================================================================
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+                'marketplace.context_processors.cart_context',
+            ],
+        },
+    },
+]
+
+# =============================================================================
+# CONFIGURACIÓN DE CRISPY FORMS
+# =============================================================================
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# =============================================================================
+# CONFIGURACIÓN DE CARRITO
+# =============================================================================
+
+CART_SESSION_ID = 'cart'
+
+# =============================================================================
+# CONFIGURACIÓN DE APIs EXTERNAS
+# =============================================================================
+
+# Google Gemini AI
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+# Mercado Pago - CONFIGURACIÓN BÁSICA
+
+MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
+MERCADOPAGO_PUBLIC_KEY = os.getenv('MERCADOPAGO_PUBLIC_KEY')
+
+# Google OAuth
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID',''), 
+            'secret': os.getenv('GOOGLE_SECRET', ''),    
+            'key': ''
+        }
+    }
+}
+SOCIALACCOUNT_ADAPTER = 'users.adapters.CustomSocialAccountAdapter'
+
+# =============================================================================
+# CONFIGURACIÓN DE SEGURIDAD ADICIONAL
+# =============================================================================
+
+# Validadores de contraseña
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+# Configuración de CORS
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+# URL base para callbacks
+#BASE_URL = 'http://127.0.0.1:8000'
+BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000") # <-- render
+
+# Configuración del admin dashboard
+ADMIN_DASHBOARD = True
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuración Debug Toolbar para desarrollo
+if ENVIRONMENT == 'development':
+    INTERNAL_IPS = ['127.0.0.1']
+
+------market/masivo_tech/urls.py------
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('marketplace.urls')),
+    path('soporte/', include('chat.urls')),
+    path('accounts/', include('allauth.urls')),  # necesario para allauth
+    path('accounts/', include('users.urls')), # usuarios
+]
+
+# Debug Toolbar - SOLO EN DESARROLLO
+if settings.DEBUG:
+    try:
+        import debug_toolbar
+        urlpatterns = [
+            path('__debug__/', include(debug_toolbar.urls)),
+        ] + urlpatterns
+    except ImportError:
+        pass
+
+# ⚠️ IMPORTANTE: Las rutas static() deben ir DESPUÉS de todo
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+------market/masivo_tech/wsgi.py------
+"""
+WSGI config for masivo_tech project.
+
+It exposes the WSGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
+"""
+
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+
+application = get_wsgi_application()
+
+
+------market/masivo_tech/__init__.py------
+
+
+------market/scripts/load_products.py------
+import os
+import sys
+
+# === FIX PARA RENDER ===
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+sys.path.insert(0, project_root)
+# === FIN FIX ===
+
+import django
+import requests
+from django.core.files.base import ContentFile
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+django.setup()
+
+from marketplace.models import Product
+
+def get_argentina_products():
+    """Productos con precios reales de Argentina - SOLO CATEGORÍAS VÁLIDAS"""
+    
+    argentina_peripherals = [
+        {
+            'name': 'Teclado Redragon Kumara K552',
+            'description': 'Teclado mecánico gaming retroiluminado, switches Outemu Blue, antighosting.',
+            'price': 25999.00,
+            'category': 'teclados',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_614206-MLA48677918436_122021-F.webp'
+        },
+        {
+            'name': 'Mouse Logitech G203 Lightsync',
+            'description': 'Mouse gaming con sensor 8000 DPI, iluminación RGB Lightsync, 6 botones.',
+            'price': 18999.00,
+            'category': 'mouses', 
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_836580-MLA43824365525_102020-F.webp'
+        },
+        {
+            'name': 'Auriculares HyperX Cloud Stinger',
+            'description': 'Auriculares gaming con sonido stereo, micrófono con cancelación de ruido.',
+            'price': 32999.00,
+            'category': 'auriculares',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_822507-MLA31002772475_062019-F.webp'
+        },
+        {
+            'name': 'Monitor Samsung 24" F390',
+            'description': 'Monitor LED 24" Full HD, panel VA, 60Hz, diseño sin bordes.',
+            'price': 89999.00,
+            'category': 'monitores',
+            'image_url': 'https://http2.mlstatic.com/D_NQ_NP_2X_679224-MLA48678692861_122021-F.webp'
+        }
+    ]
+    
+    return argentina_peripherals
+
+def create_argentina_products():
+    """Crea productos con precios reales de Argentina"""
+    
+    products_data = get_argentina_products()
+    created_count = 0
+    skipped_count = 0
+
+    print("🔄 INICIANDO CARGA DE PRODUCTOS")
+    for product_info in products_data:
+        # Verificar si ya existe (protección contra duplicados)
+        if Product.objects.filter(name=product_info['name']).exists():
+            print(f"⏭️  Saltando: {product_info['name']} (ya existe)")
+            skipped_count += 1
+            continue
+            
+        # Crear producto sin imagen primero
+        product = Product(
+            name=product_info['name'],
+            description=product_info['description'],
+            price=product_info['price'],
+            category=product_info['category'],
+            stock=15,
+            available=True
+        )
+        
+        # Descargar y asignar imagen (si el campo existe)
+        try:
+            # 1. LOG - Solo muestra qué imagen está descargando
+            print(f"Descargando imagen para: {product_info['name']}")
+            
+            # 2. DESCARGAR - Hace una petición HTTP a la URL de la imagen
+            response = requests.get(product_info['image_url'], timeout=10)
+            
+            # 3. VERIFICAR - Revisa si la descarga fue exitosa
+            if response.status_code == 200: # 200 = HTTP OK (éxito)
+                # 4. CREAR NOMBRE DE ARCHIVO
+                file_name = f"{product_info['name'].replace(' ', '_').lower()}.jpg"
+                # Ejemplo: "Teclado Redragon Kumara K552" → "teclado_redragon_kumara_k552.jpg"
+                
+                # 5. CREAR OBJETO ARCHIVO DE DJANGO
+                image_file = ContentFile(response.content, name=file_name)
+                # ContentFile → Envuelve los bytes de la imagen en un objeto
+                # response.content → Los bytes binarios de la imagen descargada
+                # name=file_name → El nombre que tendrá el archivo guardado
+        
+                # 6. ASIGNAR IMAGEN AL PRODUCTO
+                product.image.save(file_name, image_file, save=False)
+                # product.image → El campo ImageField del modelo Product
+                # .save() → Método que guarda la imagen en el storage (Cloudinary/filesystem)
+                # save=False → IMPORTANTE: Guarda la imagen PERO NO guarda el producto en BD
+        
+                print("Imagen descargada exitosamente")
+            else:
+                print(f"Error HTTP {response.status_code} al descargar imagen")
+                # No asignamos imagen por defecto, el campo puede ser obligatorio
+        except Exception as e:
+            print(f"Error descargando imagen: {str(e)}")
+            # Continuamos sin imagen si hay error Captura cualquier error: timeout, conexión, etc.
+        
+        # Guardar producto
+        product.save() # ← Este save() pertenece al MODELO Product
+        created_count += 1
+        print(f"CREADO: {product_info['name']} - ${product_info['price']}")
+    
+    print("CARGA DE PRODUCTOS COMPLETADA")
+    print(f"PRODUCTOS NUEVOS: {created_count}")
+    print(f"PRODUCTOS EXISTENTES: {skipped_count}")
+    print(f"TOTAL EN SISTEMA: {Product.objects.count()} productos")
+    return created_count, skipped_count
+
+if __name__ == "__main__":
+    create_argentina_products()
+
+------market/users/adapters.py------
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
+    
+    def populate_user(self, request, sociallogin, data):
+        """
+        Personaliza cómo se crean los usuarios de redes sociales
+        """
+        user = super().populate_user(request, sociallogin, data)
+        
+        # Para usuarios de Google
+        if sociallogin.account.provider == 'google':
+            extra_data = sociallogin.account.extra_data
+            
+            # Usar el email como username si no hay username
+            if not user.username and user.email:
+                user.username = user.email.split('@')[0]
+            
+            # Llenar nombre y apellido desde Google
+            if extra_data.get('given_name'):
+                user.first_name = extra_data.get('given_name', '')
+            if extra_data.get('family_name'):
+                user.last_name = extra_data.get('family_name', '')
+                
+        return user
+
+------market/users/admin.py------
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from .models import CustomUser
+
+@admin.register(CustomUser)
+class CustomUserAdmin(UserAdmin):
+    list_display = ['email', 'username', 'first_name', 'last_name', 'is_staff', 'is_active']
+    list_filter = ['is_staff', 'is_active', 'created_at']
+    search_fields = ['email', 'username', 'first_name', 'last_name']
+    
+    fieldsets = UserAdmin.fieldsets + (
+        ('Información adicional', {
+            'fields': ('phone_number', 'profile_picture', 'date_of_birth', 'bio')
+        }),
+    )
+    
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Información adicional', {
+            'fields': ('phone_number', 'profile_picture', 'date_of_birth', 'bio')
+        }),
+    )
+
+# O si preferís la versión simple:
+# admin.site.register(CustomUser)
+
+------market/users/apps.py------
+from django.apps import AppConfig
+
+class UsersConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'users'
+    verbose_name = 'Users'
+
+
+------market/users/forms.py------
+from django import forms
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm
+from .models import CustomUser
+
+class CustomUserCreationForm(UserCreationForm):
+    class Meta:
+        model = CustomUser
+        #fields = ('email', 'username', 'phone_number')
+        fields = ('email', 'username', 'first_name', 'last_name', 'phone_number')
+
+
+class CustomUserChangeForm(UserChangeForm):
+    class Meta:
+        model = CustomUser
+        #fields = ('email', 'username', 'phone_number', 'profile_picture', 'date_of_birth', 'bio')
+        fields = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'profile_picture')
+
+class UserUpdateForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = ['first_name', 'last_name', 'email', 'phone_number', 'profile_picture']
+        widgets = {
+            'profile_picture': forms.FileInput(attrs={'class': 'form-control'}),
+        }
+
+class ProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = ['profile_picture', 'date_of_birth', 'bio']
+
+------market/users/managers.py------
+from django.contrib.auth.base_user import BaseUserManager
+
+class CustomUserManager(BaseUserManager):
+    use_in_migrations = True
+
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("El email es obligatorio")
+
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("El superusuario debe tener is_superuser=True.")
+
+        return self.create_user(email, password, **extra_fields)
+
+
+------market/users/models.py------
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from .managers import CustomUserManager
+
+from cloudinary_storage.storage import MediaCloudinaryStorage
+import cloudinary_storage
+
+class CustomUser(AbstractUser):
+    email = models.EmailField(unique=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    profile_picture = models.ImageField(upload_to='profile_pics/',
+                                        blank=True,
+                                        null=True,
+                                        default='profile_pics/default_avatar.png',
+                                        storage=MediaCloudinaryStorage())
+    date_of_birth = models.DateField(blank=True, null=True)
+    bio = models.TextField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Para login con email en lugar de username
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    
+    objects = CustomUserManager()   # ← ESTE ERA EL FALTANTE
+
+    def __str__(self):
+        return self.email
+    def get_display_name(self):
+        """Retorna el nombre para mostrar: nombre completo o email"""
+        if self.first_name:
+            return f"{self.first_name} {self.last_name}".strip()
+        return self.email.split('@')[0]  # Parte antes del @
+
+# En settings.py agregar:
+# AUTH_USER_MODEL = 'users.CustomUser'
+
+------market/users/tests.py------
+from django.test import TestCase
+
+# Create your tests here.
+
+
+------market/users/urls.py------
+from django.urls import path, include
+from . import views
+
+urlpatterns = [
+    path('profile/', views.profile, name='profile'),
+    path('profile/update/', views.update_profile, name='update_profile'),
+    path('profile/delete/', views.delete_account, name='delete_account'),
+    path('change-password/', views.change_password, name='change_password'),
+    path('orders/', views.order_history, name='order_history'),
+]
+
+------market/users/views.py------
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from .forms import UserUpdateForm, ProfileUpdateForm
+from .models import CustomUser
+from marketplace.models import Order  # ← AGREGAR ESTA IMPORTACIÓN
+
+@login_required
+def profile(request):
+    """Vista del perfil del usuario"""
+    return render(request, 'users/profile.html')
+
+@login_required
+def update_profile(request):
+    """Vista para actualizar perfil"""
+    if request.method == 'POST':
+        # esto cambia
+        #user_form = UserUpdateForm(request.POST, instance=request.user)
+        #profile_form = ProfileUpdateForm(request.POST, request.FILES, instance=request.user)
+        # por esto
+        form = UserUpdateForm(request.POST, request.FILES, instance=request.user)
+        
+        """ y esto cambia
+        if user_form.is_valid() and profile_form.is_valid():
+            user_form.save()
+            profile_form.save()
+            messages.success(request, 'Tu perfil ha sido actualizado!')
+            return redirect('profile')
+        """
+        """Por esto"""
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Tu perfil ha sido actualizado exitosamente!')
+            return redirect('profile')
+    else:
+        # esto cambia
+        #user_form = UserUpdateForm(instance=request.user)
+        #profile_form = ProfileUpdateForm(instance=request.user)
+    
+        #Por esto
+        form = UserUpdateForm(instance=request.user)
+    """ no se necesita entonces por ahora
+    context = {
+        'user_form': user_form,
+        'profile_form': profile_form
+    }
+    return render(request, 'users/update_profile.html', context)
+    """
+    return render(request, 'users/update_profile.html', {'form': form})
+
+@login_required
+def change_password(request):
+    """Vista para cambiar contraseña"""
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # Important!
+            messages.success(request, 'Tu contraseña ha sido cambiada exitosamente!')
+            return redirect('profile')
+        else:
+            messages.error(request, 'Por favor corrige los errores below.')
+    else:
+        form = PasswordChangeForm(request.user)
+    return render(request, 'users/change_password.html', {'form': form})
+
+@login_required
+def delete_account(request):
+    """Vista para eliminar cuenta"""
+    if request.method == 'POST':
+        user = request.user
+        user.delete()
+        messages.success(request, 'Tu cuenta ha sido eliminada exitosamente.')
+        return redirect('index')
+    return render(request, 'users/delete_account.html')
+
+# -------------------------Vista para historial de pedidos (si tienes app de órdenes)
+def order_history(request):
+    """Vista del historial de pedidos del usuario"""
+     # Obtener órdenes del usuario actual
+    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    
+    return render(request, 'users/order_history.html', {
+        'orders': orders
+    })
+
+------market/users/__init__.py------
+
+
+------market/users/management/__init__.py------
+
+
+------market/users/management/commands/create_admin.py------
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class Command(BaseCommand):
+    help = "Crea un superusuario si no existe"
+
+    def handle(self, *args, **kwargs):
+        email = "admin@admin.com"
+        username = "admin"
+        password = "admin1234"
+
+        if not User.objects.filter(email=email).exists():
+            self.stdout.write("Creando superusuario...")
+            User.objects.create_superuser(
+                email=email,
+                username=username,  # requerido porque REQUIRED_FIELDS incluye 'username'
+                password=password
+            )
+        else:
+            self.stdout.write("El superusuario ya existe.")
+
+
+------market/users/management/commands/__init__.py------
+
+
