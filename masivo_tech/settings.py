@@ -4,33 +4,26 @@ from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url # -> RENDER
 
-# Cargar variables de entorno - DETECCIÓN MEJORADA
-if os.path.exists('.env.local'):
-    load_dotenv('.env.local')  # Desarrollo local
-    ENVIRONMENT = 'development'
-    print("🔄 Entorno: DESARROLLO")
-else:
-    load_dotenv()  # Producción por defecto
-    ENVIRONMENT = 'production'
-    print("🚀 Entorno: PRODUCCIÓN")
+# Cargar variables de entorno
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # =============================================================================
-# CONFIGURACIÓN DE SEGURIDAD - MEJORADA CON DETECCIÓN AUTOMÁTICA
+# CONFIGURACIÓN DE SEGURIDAD
 # =============================================================================
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-temporal-para-desarrollo')
 
-# Configuración automática por entorno
-if ENVIRONMENT == 'development':
-    DEBUG = True
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.1.*']
-else:
+# Configuración automática para Render
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-    # CORREGIDO: Incluir .onrender.com para todos los subdominios
-    ALLOWED_HOSTS = ['masivotest.onrender.com', '.onrender.com', 'localhost', '127.0.0.1']
+    ALLOWED_HOSTS = [RENDER_EXTERNAL_HOSTNAME, 'localhost', '127.0.0.1']
+else:
+    DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # =============================================================================
 # CONFIGURACIÓN CLOUDINARY 
@@ -44,34 +37,30 @@ CLOUDINARY_CONFIGURED = all([
 ])
 
 if CLOUDINARY_CONFIGURED:
-    # CLOUDINARY CONFIGURADO - cargar e inicializar
     import cloudinary
     import cloudinary.uploader
     import cloudinary.api
     from cloudinary_storage.storage import MediaCloudinaryStorage
     
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-        'PREFIX': 'masivo_tech/'  # ← Organización en carpetas
-    }
+    cloudinary.config( 
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'), 
+        api_secret=os.getenv('CLOUDINARY_API_SECRET')
+    )
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     print("☁️  Cloudinary configurado")
 else:
-    # CLOUDINARY NO CONFIGURADO - archivos locales
+    # Fallback a archivos locales
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-    print("📁 Usando archivos locales para desarrollo")
+    print("📁 Cloudinary no configurado - usando archivos locales")
 
 # =============================================================================
 # CONFIGURACIÓN DE LA APLICACIÓN
 # =============================================================================
 
-# CORREGIDO: Cloudinary debe estar AL PRINCIPIO de INSTALLED_APPS
-base_apps = [
-    # Apps de Django
+INSTALLED_APPS = [
+    # Cloudinary debe estar primero si está configurado
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -79,16 +68,7 @@ base_apps = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
-]
 
-# Agregar Cloudinary solo si está configurado - AL PRINCIPIO
-if CLOUDINARY_CONFIGURED:
-    base_apps = [
-        'cloudinary',
-        'cloudinary_storage',
-    ] + base_apps
-
-INSTALLED_APPS = base_apps + [
     # Apps de terceros
     'crispy_forms',
     'crispy_bootstrap5',
@@ -105,96 +85,54 @@ INSTALLED_APPS = base_apps + [
     'chat',
 ]
 
-# Debug Toolbar solo en desarrollo
-if ENVIRONMENT == 'development':
-    INSTALLED_APPS += ['debug_toolbar']
+# Agregar Cloudinary solo si está configurado
+if CLOUDINARY_CONFIGURED:
+    INSTALLED_APPS = ['cloudinary', 'cloudinary_storage'] + INSTALLED_APPS
 
 MIDDLEWARE = [
-    # Middleware de CORS (primero)
     'corsheaders.middleware.CorsMiddleware',
-    
-    # Middleware de seguridad
     'django.middleware.security.SecurityMiddleware',
-    
-    # Whitenoise para archivos estáticos en producción -> RENDER
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-
-    # Middleware de sesión
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # ✅ POSICIÓN CORRECTA
     'django.contrib.sessions.middleware.SessionMiddleware',
-    
-    # Middleware común
     'django.middleware.common.CommonMiddleware',
-    
-    # Middleware CSRF
     'django.middleware.csrf.CsrfViewMiddleware',
-    
-    # Middleware de autenticación
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    
-    # Middleware de mensajes
     'django.contrib.messages.middleware.MessageMiddleware',
-    
-    # Middleware de clickjacking
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    
-    # Middleware de Allauth
     'allauth.account.middleware.AccountMiddleware',
 ]
 
-# Debug Toolbar solo en desarrollo
-if ENVIRONMENT == 'development':
-    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-
 ROOT_URLCONF = 'masivo_tech.urls'
-
 WSGI_APPLICATION = 'masivo_tech.wsgi.application'
 
 # =============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS - CONFIGURACIÓN ROBUSTA
+# CONFIGURACIÓN DE BASE DE DATOS
 # =============================================================================
 
-# Configuración robusta que funciona en todos los escenarios
-try:
-    DATABASE_URL = os.environ.get("DATABASE_URL")
-    if DATABASE_URL:
-        # PostgreSQL en producción
-        DATABASES = {
-            'default': dj_database_url.parse(DATABASE_URL)
-        }
-        print("🗄️  Usando PostgreSQL")
-    else:
-        # SQLite en desarrollo
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
-        print("🗄️  Usando SQLite")
-except Exception as e:
-    # Fallback absoluto a SQLite
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-    print(f"⚠️  Error con DB, usando SQLite: {e}")
+}
+
+# PostgreSQL en Render (si existe DATABASE_URL)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
 
 # =============================================================================
 # CONFIGURACIÓN DE AUTENTICACIÓN
 # =============================================================================
 
-# Backends de autenticación
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# Modelo de usuario personalizado
 AUTH_USER_MODEL = 'users.CustomUser'
 
-# Configuración de Allauth
+# Allauth
 SITE_ID = 1
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
@@ -208,25 +146,24 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_STORE_TOKENS = True
 
-# CORREGIDO: Protocolo según entorno
-if ENVIRONMENT == 'development':
-    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
+# Protocolo según entorno
+if RENDER_EXTERNAL_HOSTNAME:
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 else:
-    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'  # ← IMPORTANTE para producción
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
 
-# Configuración de registro
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 
 # =============================================================================
-# CONFIGURACIÓN DE EMAIL (DESACTIVADO PARA RENDER)
+# CONFIGURACIÓN DE EMAIL
 # =============================================================================
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "no-reply@masivotech.com"
 
 # =============================================================================
-# CONFIGURACIÓN DE INTERNATIONALIZATION
+# INTERNATIONALIZATION
 # =============================================================================
 
 LANGUAGE_CODE = 'es-ar'
@@ -235,24 +172,18 @@ USE_I18N = True
 USE_TZ = True
 
 # =============================================================================
-# CONFIGURACIÓN DE ARCHIVOS ESTÁTICOS Y MEDIA
+# ARCHIVOS ESTÁTICOS - CONFIGURACIÓN CORREGIDA
 # =============================================================================
 
-# Archivos estáticos
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# CORREGIDO: Usar StaticFilesStorage en lugar de CompressedManifest
+# ✅ SOLUCIÓN: Cambiar a StaticFilesStorage
 STATICFILES_STORAGE = 'whitenoise.storage.StaticFilesStorage'
 
-# Archivos media (configuración local como respaldo)
-if not CLOUDINARY_CONFIGURED:
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
-
 # =============================================================================
-# CONFIGURACIÓN DE TEMPLATES
+# TEMPLATES
 # =============================================================================
 
 TEMPLATES = [
@@ -273,39 +204,24 @@ TEMPLATES = [
 ]
 
 # =============================================================================
-# CONFIGURACIÓN DE CRISPY FORMS
+# OTRAS CONFIGURACIONES
 # =============================================================================
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
-# =============================================================================
-# CONFIGURACIÓN DE CARRITO
-# =============================================================================
-
 CART_SESSION_ID = 'cart'
 
-# =============================================================================
-# CONFIGURACIÓN DE APIs EXTERNAS
-# =============================================================================
-
-# Google Gemini AI
+# APIs externas
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-
-# Mercado Pago
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 MERCADOPAGO_PUBLIC_KEY = os.getenv('MERCADOPAGO_PUBLIC_KEY')
 
 # Google OAuth
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
-        'SCOPE': [
-            'profile',
-            'email',
-        ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
         'APP': {
             'client_id': os.getenv('GOOGLE_CLIENT_ID',''), 
             'secret': os.getenv('GOOGLE_SECRET', ''),    
@@ -315,57 +231,20 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 SOCIALACCOUNT_ADAPTER = 'users.adapters.CustomSocialAccountAdapter'
 
-# =============================================================================
-# CONFIGURACIÓN DE SEGURIDAD ADICIONAL
-# =============================================================================
-
-# Validadores de contraseña
+# Seguridad
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Configuración de CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# CORREGIDO: URL base para producción
 BASE_URL = os.getenv("BASE_URL", "https://masivotest.onrender.com")
 
-# Configuración del admin dashboard
 ADMIN_DASHBOARD = True
-
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Configuración Debug Toolbar para desarrollo
-if ENVIRONMENT == 'development':
-    INTERNAL_IPS = ['127.0.0.1']
-
-# =============================================================================
-# CONFIGURACIÓN DE SEGURIDAD PARA PRODUCCIÓN
-# =============================================================================
-
-if ENVIRONMENT == 'production':
-    # Seguridad para producción
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-
 print("✅ Settings cargado correctamente")
-print(f"📍 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
-print(f"🔧 DEBUG: {DEBUG}")
-print(f"☁️  CLOUDINARY: {CLOUDINARY_CONFIGURED}")
-print(f"🌐 PROTOCOLO: {ACCOUNT_DEFAULT_HTTP_PROTOCOL}")
