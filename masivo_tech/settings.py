@@ -2,12 +2,12 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import dj_database_url # -> RENDER
+import dj_database_url
 
 # Cargar variables de entorno
 load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # =============================================================================
@@ -16,20 +16,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-temporal-para-desarrollo')
 
-# Configuración automática para Render
+# Detección automática de entorno
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-    ALLOWED_HOSTS = [RENDER_EXTERNAL_HOSTNAME, 'localhost', '127.0.0.1']
+    ALLOWED_HOSTS = [RENDER_EXTERNAL_HOSTNAME, '.onrender.com', 'localhost', '127.0.0.1']
 else:
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
 # =============================================================================
 # CONFIGURACIÓN CLOUDINARY 
 # =============================================================================
 
-# Verificar si Cloudinary está configurado
 CLOUDINARY_CONFIGURED = all([
     os.getenv('CLOUDINARY_CLOUD_NAME'),
     os.getenv('CLOUDINARY_API_KEY'), 
@@ -48,19 +47,12 @@ if CLOUDINARY_CONFIGURED:
         api_secret=os.getenv('CLOUDINARY_API_SECRET')
     )
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    print("☁️  Cloudinary configurado")
-else:
-    # Fallback a archivos locales
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
-    print("📁 Cloudinary no configurado - usando archivos locales")
 
 # =============================================================================
 # CONFIGURACIÓN DE LA APLICACIÓN
 # =============================================================================
 
 INSTALLED_APPS = [
-    # Cloudinary debe estar primero si está configurado
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -69,7 +61,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
 
-    # Apps de terceros
     'crispy_forms',
     'crispy_bootstrap5',
     'corsheaders',
@@ -79,20 +70,18 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'django_extensions',
     
-    # Apps locales
     'marketplace',
     'users',
     'chat',
 ]
 
-# Agregar Cloudinary solo si está configurado
 if CLOUDINARY_CONFIGURED:
     INSTALLED_APPS = ['cloudinary', 'cloudinary_storage'] + INSTALLED_APPS
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ✅ POSICIÓN CORRECTA
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -106,7 +95,7 @@ ROOT_URLCONF = 'masivo_tech.urls'
 WSGI_APPLICATION = 'masivo_tech.wsgi.application'
 
 # =============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS
+# BASE DE DATOS
 # =============================================================================
 
 DATABASES = {
@@ -116,13 +105,12 @@ DATABASES = {
     }
 }
 
-# PostgreSQL en Render (si existe DATABASE_URL)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
 
 # =============================================================================
-# CONFIGURACIÓN DE AUTENTICACIÓN
+# AUTENTICACIÓN
 # =============================================================================
 
 AUTHENTICATION_BACKENDS = [
@@ -131,8 +119,6 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 AUTH_USER_MODEL = 'users.CustomUser'
-
-# Allauth
 SITE_ID = 1
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
@@ -146,7 +132,6 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_STORE_TOKENS = True
 
-# Protocolo según entorno
 if RENDER_EXTERNAL_HOSTNAME:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 else:
@@ -156,34 +141,22 @@ ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 
 # =============================================================================
-# CONFIGURACIÓN DE EMAIL
-# =============================================================================
-
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "no-reply@masivotech.com"
-
-# =============================================================================
-# INTERNATIONALIZATION
-# =============================================================================
-
-LANGUAGE_CODE = 'es-ar'
-TIME_ZONE = 'America/Argentina/Buenos_Aires'
-USE_I18N = True
-USE_TZ = True
-
-# =============================================================================
-# ARCHIVOS ESTÁTICOS - CONFIGURACIÓN CORREGIDA
+# ARCHIVOS ESTÁTICOS - SOLUCIÓN DEFINITIVA
 # =============================================================================
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# ✅ SOLUCIÓN: Cambiar a StaticFilesStorage
+# ✅ SOLUCIÓN: WhiteNoise con configuración correcta
 STATICFILES_STORAGE = 'whitenoise.storage.StaticFilesStorage'
 
+# Configuración adicional para WhiteNoise
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
+
 # =============================================================================
-# TEMPLATES
+# TEMPLATES Y OTRAS CONFIGURACIONES
 # =============================================================================
 
 TEMPLATES = [
@@ -203,21 +176,15 @@ TEMPLATES = [
     },
 ]
 
-# =============================================================================
-# OTRAS CONFIGURACIONES
-# =============================================================================
-
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
-
 CART_SESSION_ID = 'cart'
 
-# APIs externas
+# APIs
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 MERCADOPAGO_PUBLIC_KEY = os.getenv('MERCADOPAGO_PUBLIC_KEY')
 
-# Google OAuth
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
@@ -241,10 +208,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-
 BASE_URL = os.getenv("BASE_URL", "https://masivotest.onrender.com")
-
-ADMIN_DASHBOARD = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-print("✅ Settings cargado correctamente")
+# Configuración de seguridad para producción
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+print("✅ Settings cargado - Configuración optimizada para Render")
