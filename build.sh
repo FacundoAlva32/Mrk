@@ -1,53 +1,22 @@
 #!/usr/bin/env bash
 set -o errexit
 
-echo "🚀 BUILD MASIVO TECH - DEBUG COMPLETO"
+echo "🚀 BUILD MASIVO TECH - ESTÁTICOS FIX"
 
 # Dependencias
 pip install -r requirements.txt
 
 # =============================================================================
-# DEBUG DETALLADO DE ARCHIVOS ESTÁTICOS
+# VERIFICACIÓN DE ARCHIVOS
 # =============================================================================
-echo "=== DEBUG: VERIFICANDO ARCHIVOS EN RENDER ==="
+echo "=== VERIFICANDO ARCHIVOS ESTÁTICOS ==="
 
-# Verificar estructura del proyecto
-echo "1. Estructura del proyecto:"
-find . -type d -name "static" -o -name "staticfiles" | sort
-
-echo "2. Contenido de static/ si existe:"
-if [ -d "static" ]; then
-    echo "✅ static/ EXISTE"
-    ls -la static/
-    echo "--- CSS files ---"
-    find static/ -name "*.css" | head -10
-    echo "--- JS files ---" 
-    find static/ -name "*.js" | head -10
-else
-    echo "❌ static/ NO EXISTE"
-fi
-
-echo "3. Verificando desde Python:"
-python3 -c "
-import os
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-static_path = BASE_DIR / 'static'
-staticfiles_path = BASE_DIR / 'staticfiles'
-
-print(f'BASE_DIR: {BASE_DIR}')
-print(f'static/ existe: {static_path.exists()}')
-print(f'staticfiles/ existe: {staticfiles_path.exists()}')
-
-if static_path.exists():
-    print('Contenido de static/:')
-    for item in static_path.iterdir():
-        print(f'  - {item.name}')
-        if item.is_dir():
-            for subitem in item.iterdir():
-                print(f'    - {subitem.name}')
-"
+echo "1. static/ existe y tiene:"
+ls -la static/
+echo "--- CSS: ---"
+find static/css -name "*.css" | head -10
+echo "--- JS: ---" 
+find static/js -name "*.js" | head -10
 
 # =============================================================================
 # MIGRACIONES
@@ -57,35 +26,139 @@ python manage.py makemigrations --noinput
 python manage.py migrate --noinput
 
 # =============================================================================
-# COLECTAR ESTÁTICOS CON MÁXIMO VERBOSITY
+# SOLUCIÓN: COLECTAR ESTÁTICOS CON CONFIGURACIÓN ESPECÍFICA
 # =============================================================================
-echo "=== COLECTANDO ESTÁTICOS ==="
-python manage.py collectstatic --noinput --verbosity 3 --clear
+echo "=== SOLUCIÓN: COLECTANDO ESTÁTICOS ==="
 
-# =============================================================================
-# VERIFICAR RESULTADO
-# =============================================================================
+# Opción A: Forzar collectstatic con settings específicos
+python -c "
+import os
+import django
+from django.core.management import execute_from_command_line
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+django.setup()
+
+# Ejecutar collectstatic programáticamente
+from django.core.management import call_command
+call_command('collectstatic', '--noinput', '--verbosity', '2')
+"
+
+# Opción B: Si falla A, usar método directo
 echo "=== VERIFICANDO RESULTADO ==="
 if [ -d "staticfiles" ]; then
     echo "✅ staticfiles/ CREADO"
-    echo "Contenido de staticfiles/:"
-    ls -la staticfiles/
-    
-    echo "Archivos CSS en staticfiles/:"
-    find staticfiles/ -name "*.css" | head -10
-    
-    echo "Archivos JS en staticfiles/:"
-    find staticfiles/ -name "*.js" | head -10
-    
-    echo "Total de archivos:"
-    find staticfiles/ -type f | wc -l
+    find staticfiles/ -name "*.css" | head -5
+    find staticfiles/ -name "*.js" | head -5
 else
-    echo "❌ staticfiles/ NO CREADO"
+    echo "❌ staticfiles/ NO CREADO - USANDO MÉTODO MANUAL"
+    
+    # Crear directorio
+    mkdir -p staticfiles
+    
+    # Copiar archivos manualmente
+    cp -r static/* staticfiles/ 2>/dev/null || true
+    cp -r static/css staticfiles/ 2>/dev/null || true
+    cp -r static/js staticfiles/ 2>/dev/null || true
+    cp -r static/images staticfiles/ 2>/dev/null || true
+    cp -r static/admin staticfiles/ 2>/dev/null || true
+    
+    echo "✅ Archivos copiados manualmente"
+    ls -la staticfiles/
 fi
+
+# =============================================================================
+# VERIFICACIÓN FINAL
+# =============================================================================
+echo "=== VERIFICACIÓN FINAL ==="
+[ -d "staticfiles/css" ] && echo "✅ CSS en staticfiles/" && ls staticfiles/css/*.css | head -3
+[ -d "staticfiles/js" ] && echo "✅ JS en staticfiles/" && ls staticfiles/js/*.js | head -3
 
 # =============================================================================
 # DATOS INICIALES
 # =============================================================================
 [ -f "scripts/load_products.py" ] && python scripts/load_products.py
 
-echo "✅ BUILD COMPLETADO - DEBUG FINALIZADO"
+echo "✅ BUILD COMPLETADO - ESTÁTICOS CONFIGURADOS"
+#!/usr/bin/env bash
+set -o errexit
+
+echo "🚀 BUILD MASIVO TECH - ESTÁTICOS FIX"
+
+# Dependencias
+pip install -r requirements.txt
+
+# =============================================================================
+# VERIFICACIÓN DE ARCHIVOS
+# =============================================================================
+echo "=== VERIFICANDO ARCHIVOS ESTÁTICOS ==="
+
+echo "1. static/ existe y tiene:"
+ls -la static/
+echo "--- CSS: ---"
+find static/css -name "*.css" | head -10
+echo "--- JS: ---" 
+find static/js -name "*.js" | head -10
+
+# =============================================================================
+# MIGRACIONES
+# =============================================================================
+echo "=== APLICANDO MIGRACIONES ==="
+python manage.py makemigrations --noinput
+python manage.py migrate --noinput
+
+# =============================================================================
+# SOLUCIÓN: COLECTAR ESTÁTICOS CON CONFIGURACIÓN ESPECÍFICA
+# =============================================================================
+echo "=== SOLUCIÓN: COLECTANDO ESTÁTICOS ==="
+
+# Opción A: Forzar collectstatic con settings específicos
+python -c "
+import os
+import django
+from django.core.management import execute_from_command_line
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'masivo_tech.settings')
+django.setup()
+
+# Ejecutar collectstatic programáticamente
+from django.core.management import call_command
+call_command('collectstatic', '--noinput', '--verbosity', '2')
+"
+
+# Opción B: Si falla A, usar método directo
+echo "=== VERIFICANDO RESULTADO ==="
+if [ -d "staticfiles" ]; then
+    echo "✅ staticfiles/ CREADO"
+    find staticfiles/ -name "*.css" | head -5
+    find staticfiles/ -name "*.js" | head -5
+else
+    echo "❌ staticfiles/ NO CREADO - USANDO MÉTODO MANUAL"
+    
+    # Crear directorio
+    mkdir -p staticfiles
+    
+    # Copiar archivos manualmente
+    cp -r static/* staticfiles/ 2>/dev/null || true
+    cp -r static/css staticfiles/ 2>/dev/null || true
+    cp -r static/js staticfiles/ 2>/dev/null || true
+    cp -r static/images staticfiles/ 2>/dev/null || true
+    cp -r static/admin staticfiles/ 2>/dev/null || true
+    
+    echo "✅ Archivos copiados manualmente"
+    ls -la staticfiles/
+fi
+
+# =============================================================================
+# VERIFICACIÓN FINAL
+# =============================================================================
+echo "=== VERIFICACIÓN FINAL ==="
+[ -d "staticfiles/css" ] && echo "✅ CSS en staticfiles/" && ls staticfiles/css/*.css | head -3
+[ -d "staticfiles/js" ] && echo "✅ JS en staticfiles/" && ls staticfiles/js/*.js | head -3
+
+# =============================================================================
+# DATOS INICIALES
+# =============================================================================
+[ -f "scripts/load_products.py" ] && python scripts/load_products.py
+
+echo "✅ BUILD COMPLETADO - ESTÁTICOS CONFIGURADOS"
