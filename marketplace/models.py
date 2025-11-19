@@ -5,9 +5,8 @@ from django.core.validators import MinValueValidator
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-# COMENTA TEMPORALMENTE CLOUDINARY PARA MIGRACIONES
-# # from cloudinary.models import CloudinaryField
-# # from cloudinary_storage.storage import MediaCloudinaryStorage
+from cloudinary.models import CloudinaryField
+from cloudinary_storage.storage import MediaCloudinaryStorage
 
 # Obtener el modelo de usuario de forma compatible
 User = get_user_model()
@@ -54,27 +53,25 @@ class Product(models.Model):
         help_text="Categoría del producto"
     )
     
-    # IMAGEN LOCAL TEMPORAL - USA ImageField normal
-    image = models.ImageField(
-        upload_to='products/',
-        verbose_name="Imagen",
-        help_text="Imagen principal del producto",
-        blank=True,
-        null=True
-    )
-    # COMENTA TODAS LAS OPCIONES DE CLOUDINARY:
+    # image = models.ImageField(
+    #     upload_to='products/',
+    #     verbose_name="Imagen",
+    #     help_text="Imagen principal del producto",
+    #     blank=True,
+    #     null=True
+    # )
     # image = CloudinaryField(
     # 'image',
     # folder='products/',
     # blank=True,
     # null=True
     # )
-    # image = models.ImageField(
-    # upload_to='products/',
-    # # storage=MediaCloudinaryStorage(),
-    # blank=True,
-    # null=True
-    # )
+    image = models.ImageField(
+    upload_to='products/',
+    storage=MediaCloudinaryStorage(),
+    blank=True,
+    null=True
+    )
 
     # Gestión de inventario
     stock = models.PositiveIntegerField(
